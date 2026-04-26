@@ -45,10 +45,14 @@ export function Navbar() {
   }
 
   React.useEffect(() => {
-    window.addEventListener(
-      "resize",
-      () => window.innerWidth >= 960 && setOpen(false)
-    );
+    const onResize = () => {
+      if (window.innerWidth >= 960) {
+        setOpen(false);
+      }
+    };
+
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
   React.useEffect(() => {

@@ -34,16 +34,6 @@ export function MobileConvenience() {
           className="flex justify-center lg:justify-start relative"
         >
           <motion.div
-            animate={{
-              y: [0, -12, 0],
-              scale: [1, 1.02, 1],
-            }}
-            transition={{
-              duration: 6,
-              repeat: Infinity,
-              repeatType: "reverse",
-              ease: "easeInOut",
-            }}
             className="relative w-full max-w-[360px] md:max-w-[420px] lg:max-w-[480px]"
           >
             <img

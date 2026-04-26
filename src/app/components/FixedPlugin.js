@@ -51,18 +51,18 @@ export default function FixedPlugin() {
           <motion.div
             className="absolute inset-[-14px] rounded-full bg-blue-500/20 pointer-events-none"
             animate={{
-              scale: [1, 1.4, 1],
-              opacity: [0.4, 0.08, 0.4],
+              scale: [1, 1.08, 1],
+              opacity: [0.25, 0.1, 0.25],
             }}
             transition={{
-              duration: 3.4,
+              duration: 4.8,
               repeat: Infinity,
               ease: "easeInOut",
             }}
           />
 
           <motion.div
-            whileHover={{ scale: 1.15, y: -6 }}
+            whileHover={{ scale: 1.06, y: -2 }}
             whileTap={{ scale: 0.92 }}
             transition={{ type: "spring", stiffness: 400, damping: 17 }}
           >
