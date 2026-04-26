@@ -1,4 +1,3 @@
-
 function setupSocket(io) {
   io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
@@ -10,24 +9,39 @@ function setupSocket(io) {
       }
     });
 
-    socket.on("send-offer", (data) => {
-      console.log(data);
-      const roomId = data?.roomId;
-      if (roomId) {
-        io.to(roomId).emit("receive-offer", data);
+    socket.on('join-room', (roomId) => {
+      if (!roomId) {
         return;
       }
-      io.emit("receive-offer", data);
+      socket.join(roomId);
+      console.log(`Socket ${socket.id} joined room ${roomId}`);
     });
 
-    socket.on("send-answer", (data) => {
-      console.log(data);
+    socket.on('send-offer', (data) => {
       const roomId = data?.roomId;
       if (roomId) {
-        io.to(roomId).emit("receive-answer", data);
+        socket.to(roomId).emit('receive-offer', data);
         return;
       }
-      io.emit("receive-answer", data);
+      socket.broadcast.emit('receive-offer', data);
+    });
+
+    socket.on('send-answer', (data) => {
+      const roomId = data?.roomId;
+      if (roomId) {
+        socket.to(roomId).emit('receive-answer', data);
+        return;
+      }
+      socket.broadcast.emit('receive-answer', data);
+    });
+
+    socket.on('send-ice-candidate', (data) => {
+      const roomId = data?.roomId;
+      if (roomId) {
+        socket.to(roomId).emit('receive-ice-candidate', data);
+        return;
+      }
+      socket.broadcast.emit('receive-ice-candidate', data);
     });
 
     socket.on('disconnect', () => {
