@@ -1,0 +1,17 @@
+{
+  "name": "ogadoctor",
+  "version": "1.0.0",
+  "description": "React + Express + Vite fullstack boilerplate for OgaDoctor",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix client\" \"npm run start --prefix server\"",
+    "dev:client": "npm run dev --prefix client",
+    "dev:server": "npm run start --prefix server",
+    "build": "npm run build --prefix client",
+    "preview": "npm run preview --prefix client",
+    "test:server": "npm run test --prefix server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

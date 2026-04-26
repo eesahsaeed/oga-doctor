@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles */
+
+.main-background{
+  top: -75px !important;
+  z-index: -1 !important;
+}
+
+.main-container{
+  background-color: rgba(255, 255, 255, 0.025) !important;
+}
+
