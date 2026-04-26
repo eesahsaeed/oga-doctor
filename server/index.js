@@ -85,7 +85,7 @@ if (clientBuildPath) {
         }
         res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
       },
-    })
+    }),
   );
 
   app.get('*', (req, res, next) => {
@@ -101,6 +101,19 @@ if (clientBuildPath) {
 
     res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(path.join(clientBuildPath, 'index.html'));
+  });
+} else {
+  // Helpful response when frontend build is missing in production/runtime.
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+
+    return res.status(503).json({
+      success: false,
+      message:
+        'Frontend build is missing. Run `npm run build` before starting the server.',
+    });
   });
 }
 
