@@ -11,7 +11,7 @@
     "build:client": "vite build",
     "build": "npm run clean && npm run build:client",
     "serve": "vite preview --host 0.0.0.0",
-    "prepare": "husky install",
+    "prepare": "node -e \"try{require('child_process').execSync('husky install',{stdio:'inherit'})}catch(e){process.exit(0)}\"",
     "test": "node --test server/tests/*.test.js",
     "prestart": "npm run build",
     "start": "node server/index.js"

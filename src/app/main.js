@@ -24,6 +24,11 @@ import ReportsPage from './pages/app/ReportsPage.js';
 import ProfilePage from './pages/app/ProfilePage.js';
 import AIConsultationPage from './pages/consultation/AIConsultationPage.js';
 import VideoConsultationPage from './pages/consultation/VideoConsultationPage.js';
+import AboutPage from './pages/marketing/AboutPage.js';
+import ServicesPage from './pages/marketing/ServicesPage.js';
+import ContactPage from './pages/marketing/ContactPage.js';
+import BlogPage from './pages/marketing/BlogPage.js';
+import MessagesPage from './pages/marketing/MessagesPage.js';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -32,6 +37,11 @@ createRoot(document.getElementById('root')).render(
         <CLayout>
           <Routes>
             <Route path="/" element={<App />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/services" element={<ServicesPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/blog" element={<BlogPage />} />
+            <Route path="/messages" element={<MessagesPage />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms-of-service" element={<TermsOfService />} />
 
