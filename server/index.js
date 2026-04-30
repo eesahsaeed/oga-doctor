@@ -9,7 +9,6 @@ import { fileURLToPath } from 'node:url';
 
 import userRoutes from './routes/userRoutes.js';
 import setupSocket from './socket/socketHandler.js';
-import indexRouter from './routes/index.js';
 import { startKeepAliveCron } from './services/keepAlive.js';
 
 dotenv.config();
@@ -26,9 +25,6 @@ const io = new Server(httpServer, {
   },
 });
 
-app.set('view engine', 'ejs');
-
-// Make io available in controllers
 app.set('io', io);
 
 app.use(cors());
@@ -60,7 +56,6 @@ function resolveClientBuildPath() {
 }
 
 // Routes
-// app.use("/", indexRouter);
 app.use('/api', userRoutes);
 app.get('/api/health', (_req, res) => {
   res.status(200).json({ success: true, message: 'OK' });
