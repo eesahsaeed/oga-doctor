@@ -1,73 +1,84 @@
-# Vite React Express Boilerplate
+# OgaDoctor (React + Express + LiveKit)
 
-> Quickly bootstrap a new project with Vite React Express Boilerplate.
+This project uses:
 
-This boilerplate is a fork of [lmachens/vite-boilerplate](https://github.com/lmachens/vite-boilerplate), but replaces TypeScript with JavaScript and removes Storybook.
+- React (Vite) frontend
+- Express backend
+- Self-hosted LiveKit for video consultation and room collaboration
 
-This boilerplate contains all the tools you need to build a modern web app with JavaScript, React, Vite, and Express.  
-You can use it to quickly bootstrap your project.
+## Local setup
 
-ESLint, stylelint, prettier, husky and lintstaged are configured to give you a solid development experience.
+1. Install dependencies
 
-## Installing / Developing
-
-First, [create a repository from this template](https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/creating-a-repository-on-github/creating-a-repository-from-a-template).
-
-Now you are ready to go:
-
-```shell
+```bash
 npm install
 ```
 
-This will install the dependencies required to run the boilerplate.
+2. Create your local env file
 
-```shell
+```bash
+cp .env.example .env
+```
+
+3. Start development (frontend + backend)
+
+```bash
 npm run dev
 ```
 
-Boom! These scripts run your server and client in development mode.
+Default ports:
 
-The default PORTS are:
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:4000`
 
-- `3001` for the server
-- `3000` for the client
+## LiveKit configuration
 
-If you don't like to call all scripts at once, you can also run:
+Required:
 
-```shell
-npm run server:dev
-npm run client:dev
+- `LIVEKIT_URL`
+- `LIVEKIT_API_KEY`
+- `LIVEKIT_API_SECRET`
+- `LIVEKIT_TOKEN_TTL` (optional, default `2h`)
+
+### Local self-host run
+
+1. Copy `livekit.yaml.example` to `livekit.yaml`
+2. Set your key pair in `livekit.yaml`
+3. Use the same values in `.env`:
+   - `LIVEKIT_API_KEY`
+   - `LIVEKIT_API_SECRET`
+4. Start LiveKit server locally:
+
+```bash
+livekit-server --config livekit.yaml
 ```
 
-You can configure the server port by setting the `PORT` environment variable. Creating a `.env` file is supported. You can copy `.env.example` to `.env`.
+5. Set app server URL in `.env`:
+   - `LIVEKIT_URL=ws://localhost:7880`
 
-| KEY  | VALUE                                                         |
-| ---- | ------------------------------------------------------------- |
-| PORT | (Optional) Port for the server environment (defaults to 3001) |
+Backend endpoint used by frontend:
 
-## Building
+- `POST /api/consultation/livekit/token`
 
-To build the project, run:
+## Production
 
-```shell
+Build frontend bundle:
+
+```bash
 npm run build
 ```
 
-This will build the client and server.
+Run backend (serves both API and built frontend):
 
-```shell
+```bash
 npm start
 ```
 
-In production, you have a single server serving everything.
+## Useful scripts
 
-`/api/*` is the API endpoint.  
-`/*` is the client.
-
-## Tests
-
-A test runner is not installed (right now). But ESLint and Prettier are checked on commit and pushed thanks to husky and lintstaged.
-
-## Licensing
-
-MIT
+- `npm run dev` - run server and client together
+- `npm run dev:server` - run backend only
+- `npm run dev:client` - run frontend only
+- `npm run test` - run backend tests
+- `npm run build` - production frontend build
+- `npm start` - serve production app

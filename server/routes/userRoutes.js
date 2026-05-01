@@ -1096,7 +1096,7 @@ router.get('/search', authRequired, async (req, res) => {
   }
 });
 
-router.post('/consultation/livekit/token', authRequired, async (req, res) => {
+async function issueLiveKitConsultationToken(req, res) {
   try {
     const liveKit = getLiveKitConfig();
     const user = await getAuthedUser(req);
@@ -1125,10 +1125,8 @@ router.post('/consultation/livekit/token', authRequired, async (req, res) => {
       .toString(36)
       .slice(2, 8)}`;
 
-    const participantName = (
-      req.body?.participantName ||
-      user.name ||
-      'OgaDoctor User'
+    const participantName = String(
+      req.body?.participantName || user.name || 'OgaDoctor User',
     )
       .toString()
       .trim()
@@ -1152,6 +1150,7 @@ router.post('/consultation/livekit/token', authRequired, async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      provider: 'livekit',
       roomName,
       serverUrl: liveKit.url,
       token: jwtToken,
@@ -1166,7 +1165,13 @@ router.post('/consultation/livekit/token', authRequired, async (req, res) => {
       'Failed to generate consultation access token',
     );
   }
-});
+}
+
+router.post(
+  '/consultation/livekit/token',
+  authRequired,
+  issueLiveKitConsultationToken,
+);
 
 router.post('/ai/health-chat', authRequired, async (req, res) => {
   try {

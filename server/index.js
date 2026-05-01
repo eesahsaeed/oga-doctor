@@ -1,6 +1,5 @@
 import express from 'express';
 import { createServer } from 'http';
-import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import fs from 'node:fs';
@@ -8,7 +7,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import userRoutes from './routes/userRoutes.js';
-import setupSocket from './socket/socketHandler.js';
 import { startKeepAliveCron } from './services/keepAlive.js';
 
 dotenv.config();
@@ -22,14 +20,6 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: {
-    origin: '*', // change to your frontend URL in production
-    methods: ['GET', 'POST'],
-  },
-});
-
-app.set('io', io);
 
 app.use(cors());
 app.use(express.json());
@@ -59,45 +49,6 @@ function resolveClientBuildPath() {
   return null;
 }
 
-function buildRtcConfig() {
-  const defaultIceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
-  const iceServers = [...defaultIceServers];
-
-  try {
-    const rawJson = process.env.RTC_ICE_SERVERS;
-    if (rawJson) {
-      const parsed = JSON.parse(rawJson);
-      if (Array.isArray(parsed)) {
-        parsed.forEach((server) => {
-          if (server && typeof server === 'object' && server.urls) {
-            iceServers.push(server);
-          }
-        });
-      }
-    }
-  } catch (error) {
-    console.warn('[rtc] Failed to parse RTC_ICE_SERVERS JSON:', error.message);
-  }
-
-  const turnUrls = (process.env.TURN_URLS || process.env.TURN_URL || '')
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-  const turnUsername = process.env.TURN_USERNAME;
-  const turnCredential =
-    process.env.TURN_PASSWORD || process.env.TURN_CREDENTIAL;
-
-  if (turnUrls.length && turnUsername && turnCredential) {
-    iceServers.push({
-      urls: turnUrls.length === 1 ? turnUrls[0] : turnUrls,
-      username: turnUsername,
-      credential: turnCredential,
-    });
-  }
-
-  return { iceServers };
-}
-
 // Routes
 app.use('/api', userRoutes);
 app.get('/api/health', (_req, res) => {
@@ -109,9 +60,6 @@ app.get('/api/ping', (_req, res) => {
     message: 'pong',
     timestamp: new Date().toISOString(),
   });
-});
-app.get('/api/rtc-config', (_req, res) => {
-  res.status(200).json(buildRtcConfig());
 });
 
 const clientBuildPath = resolveClientBuildPath();
@@ -158,9 +106,6 @@ if (clientBuildPath) {
   });
 }
 
-// Socket setup
-setupSocket(io);
-
 const PORT = process.env.PORT || 4000;
 
 export function startServer(port = PORT) {
@@ -176,7 +121,6 @@ export function startServer(port = PORT) {
 
   return httpServer.listen(port, () => {
     console.log(`Server running on port ${port}`);
-    console.log(`Socket.io ready at ws://localhost:${port}`);
     startKeepAliveCron();
   });
 }

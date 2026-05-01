@@ -11,3 +11,5 @@ livekit.yaml
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+livekit.out.log
+livekit.err.log

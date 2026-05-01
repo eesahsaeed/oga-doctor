@@ -6,6 +6,8 @@
   "scripts": {
     "clean": "rimraf dist",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:livekit": "livekit-server --config livekit.yaml",
+    "dev:full": "concurrently \"npm run dev:livekit\" \"npm run dev:server\" \"npm run dev:client\"",
     "dev:client": "vite",
     "dev:server": "nodemon server/index.js",
     "build:client": "vite build",
@@ -42,8 +44,6 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^7.14.2",
-    "socket.io": "^4.8.3",
-    "socket.io-client": "^4.8.3",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

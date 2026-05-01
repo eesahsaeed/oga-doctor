@@ -75,8 +75,8 @@ function Hero() {
             "
           >
             <img
-              src="/image/new-slogan.png"
-              alt="Smiling confident African woman using OgaDoctor app"
+              src="/image/aisha.png"
+              alt="Aisha AI assistant"
               className="absolute inset-0 h-full w-full rounded-2xl object-contain"
             />
           </div>
