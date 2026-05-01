@@ -64,6 +64,41 @@ livekit-server --config livekit.yaml
 - Keep `LIVEKIT_URL` as internal/private if needed by your infra.
 - If `LIVEKIT_PUBLIC_URL` is not set, backend falls back to `LIVEKIT_URL`.
 
+### LiveKit Cloud setup (recommended)
+
+If you are using LiveKit Cloud, set:
+
+```bash
+LIVEKIT_PUBLIC_URL=wss://your-project.livekit.cloud
+LIVEKIT_API_KEY=<your_api_key>
+LIVEKIT_API_SECRET=<your_api_secret>
+```
+
+### No-subdomain setup (DuckDNS)
+
+If your hosting provider cannot create subdomains, use a free DuckDNS domain
+for LiveKit signaling/media, for example `ogadoctorrtc.duckdns.org`.
+
+Run this on your LiveKit VM (Ubuntu/Debian):
+
+```bash
+sudo bash scripts/livekit/setup-duckdns-livekit.sh ogadoctorrtc.duckdns.org <LIVEKIT_API_KEY> <LIVEKIT_API_SECRET> <DUCKDNS_TOKEN>
+```
+
+Then set backend production env:
+
+```bash
+LIVEKIT_PUBLIC_URL=wss://ogadoctorrtc.duckdns.org
+LIVEKIT_API_KEY=<LIVEKIT_API_KEY>
+LIVEKIT_API_SECRET=<LIVEKIT_API_SECRET>
+```
+
+Notes:
+
+- The script configures LiveKit, Caddy TLS, systemd services, and firewall.
+- You must also allow ports in your cloud provider firewall/security group:
+  `80/tcp`, `443/tcp`, `7881/tcp`, `50000-50100/udp`.
+
 Backend endpoint used by frontend:
 
 - `POST /api/consultation/livekit/token`
