@@ -9,10 +9,15 @@ import User from '../schema/UserSchema.js';
 import { JWT_SECRET } from '../helper.js';
 
 const router = express.Router();
-const LIVEKIT_URL = (process.env.LIVEKIT_URL || '').trim();
-const LIVEKIT_API_KEY = (process.env.LIVEKIT_API_KEY || '').trim();
-const LIVEKIT_API_SECRET = (process.env.LIVEKIT_API_SECRET || '').trim();
-const LIVEKIT_TOKEN_TTL = (process.env.LIVEKIT_TOKEN_TTL || '2h').trim();
+
+function getLiveKitConfig() {
+  return {
+    url: (process.env.LIVEKIT_URL || '').trim(),
+    apiKey: (process.env.LIVEKIT_API_KEY || '').trim(),
+    apiSecret: (process.env.LIVEKIT_API_SECRET || '').trim(),
+    tokenTtl: (process.env.LIVEKIT_TOKEN_TTL || '2h').trim(),
+  };
+}
 
 function todayLabel(date = new Date()) {
   return date.toLocaleDateString('en-US', {
@@ -1093,6 +1098,7 @@ router.get('/search', authRequired, async (req, res) => {
 
 router.post('/consultation/livekit/token', authRequired, async (req, res) => {
   try {
+    const liveKit = getLiveKitConfig();
     const user = await getAuthedUser(req);
     if (!user) {
       return res
@@ -1100,7 +1106,7 @@ router.post('/consultation/livekit/token', authRequired, async (req, res) => {
         .json({ success: false, message: 'User not found' });
     }
 
-    if (!LIVEKIT_URL || !LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
+    if (!liveKit.url || !liveKit.apiKey || !liveKit.apiSecret) {
       return res.status(503).json({
         success: false,
         message:
@@ -1128,10 +1134,10 @@ router.post('/consultation/livekit/token', authRequired, async (req, res) => {
       .trim()
       .slice(0, 80);
 
-    const token = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
+    const token = new AccessToken(liveKit.apiKey, liveKit.apiSecret, {
       identity,
       name: participantName,
-      ttl: LIVEKIT_TOKEN_TTL,
+      ttl: liveKit.tokenTtl,
     });
 
     token.addGrant({
@@ -1147,7 +1153,7 @@ router.post('/consultation/livekit/token', authRequired, async (req, res) => {
     return res.status(200).json({
       success: true,
       roomName,
-      serverUrl: LIVEKIT_URL,
+      serverUrl: liveKit.url,
       token: jwtToken,
       identity,
       participantName,
