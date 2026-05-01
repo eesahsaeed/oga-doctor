@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import AlexAssistantChat from './AlexAssistantChat';
+import AishaAssistantChat from './AishaAssistantChat';
 
 function ChatIcon() {
   return (
@@ -58,7 +58,7 @@ export default function FixedPlugin() {
       >
         <div className="flex items-center justify-between border-b border-slate-200 bg-blue-600 px-4 py-3">
           <div>
-            <p className="text-sm font-semibold text-white">Alex Health AI</p>
+            <p className="text-sm font-semibold text-white">Aisha Health AI</p>
             <p className="text-xs text-blue-100">Secure assistant chat</p>
           </div>
           <button
@@ -70,7 +70,7 @@ export default function FixedPlugin() {
           </button>
         </div>
         <div className="bg-slate-50 p-3">
-          <AlexAssistantChat
+          <AishaAssistantChat
             compact
             showDisclaimer={false}
             placeholder="Type your health question..."
@@ -91,8 +91,8 @@ export default function FixedPlugin() {
         type="button"
         onClick={toggleModal}
         className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700"
-        title={open ? 'Hide Alex chat' : 'Open Alex chat'}
-        aria-label={open ? 'Hide Alex chat' : 'Open Alex chat'}
+        title={open ? 'Hide Aisha chat' : 'Open Aisha chat'}
+        aria-label={open ? 'Hide Aisha chat' : 'Open Aisha chat'}
       >
         <ChatIcon />
       </button>

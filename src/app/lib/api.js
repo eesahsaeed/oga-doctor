@@ -86,6 +86,8 @@ export const apiClient = {
     request('/notification-settings', { method: 'PUT', body: payload }),
 
   reports: () => request('/reports'),
+  createConsultationToken: (payload) =>
+    request('/consultation/livekit/token', { method: 'POST', body: payload }),
   healthChat: (messages, options = {}) =>
     request('/ai/health-chat', {
       method: 'POST',

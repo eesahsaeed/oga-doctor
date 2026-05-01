@@ -59,6 +59,45 @@ function resolveClientBuildPath() {
   return null;
 }
 
+function buildRtcConfig() {
+  const defaultIceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+  const iceServers = [...defaultIceServers];
+
+  try {
+    const rawJson = process.env.RTC_ICE_SERVERS;
+    if (rawJson) {
+      const parsed = JSON.parse(rawJson);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((server) => {
+          if (server && typeof server === 'object' && server.urls) {
+            iceServers.push(server);
+          }
+        });
+      }
+    }
+  } catch (error) {
+    console.warn('[rtc] Failed to parse RTC_ICE_SERVERS JSON:', error.message);
+  }
+
+  const turnUrls = (process.env.TURN_URLS || process.env.TURN_URL || '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const turnUsername = process.env.TURN_USERNAME;
+  const turnCredential =
+    process.env.TURN_PASSWORD || process.env.TURN_CREDENTIAL;
+
+  if (turnUrls.length && turnUsername && turnCredential) {
+    iceServers.push({
+      urls: turnUrls.length === 1 ? turnUrls[0] : turnUrls,
+      username: turnUsername,
+      credential: turnCredential,
+    });
+  }
+
+  return { iceServers };
+}
+
 // Routes
 app.use('/api', userRoutes);
 app.get('/api/health', (_req, res) => {
@@ -70,6 +109,9 @@ app.get('/api/ping', (_req, res) => {
     message: 'pong',
     timestamp: new Date().toISOString(),
   });
+});
+app.get('/api/rtc-config', (_req, res) => {
+  res.status(200).json(buildRtcConfig());
 });
 
 const clientBuildPath = resolveClientBuildPath();

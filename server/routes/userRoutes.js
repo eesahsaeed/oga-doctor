@@ -3,11 +3,16 @@ import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { body, validationResult } from 'express-validator';
+import { AccessToken } from 'livekit-server-sdk';
 
 import User from '../schema/UserSchema.js';
 import { JWT_SECRET } from '../helper.js';
 
 const router = express.Router();
+const LIVEKIT_URL = (process.env.LIVEKIT_URL || '').trim();
+const LIVEKIT_API_KEY = (process.env.LIVEKIT_API_KEY || '').trim();
+const LIVEKIT_API_SECRET = (process.env.LIVEKIT_API_SECRET || '').trim();
+const LIVEKIT_TOKEN_TTL = (process.env.LIVEKIT_TOKEN_TTL || '2h').trim();
 
 function todayLabel(date = new Date()) {
   return date.toLocaleDateString('en-US', {
@@ -15,6 +20,16 @@ function todayLabel(date = new Date()) {
     day: 'numeric',
     year: 'numeric',
   });
+}
+
+function normalizeRoomName(rawValue = '') {
+  const cleaned = rawValue
+    .toString()
+    .trim()
+    .replace(/[^a-zA-Z0-9-_]/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 80);
+  return cleaned;
 }
 
 function buildDefaultAppointments() {
@@ -488,12 +503,10 @@ router.post(
       const existingUser = await findUserByEmail(normalizedEmail);
 
       if (existingUser) {
-        return res
-          .status(409)
-          .json({
-            success: false,
-            message: 'User with this email already exists',
-          });
+        return res.status(409).json({
+          success: false,
+          message: 'User with this email already exists',
+        });
       }
 
       const salt = await bcrypt.genSalt(12);
@@ -873,12 +886,10 @@ router.post('/notifications', authRequired, async (req, res) => {
 
     const payload = req.body || {};
     if (!payload.title || !payload.description) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: 'title and description are required',
-        });
+      return res.status(400).json({
+        success: false,
+        message: 'title and description are required',
+      });
     }
 
     const notification = {
@@ -991,12 +1002,10 @@ router.get('/notification-settings', authRequired, async (req, res) => {
     });
   } catch (error) {
     console.error('Get notification settings error:', error);
-    return res
-      .status(500)
-      .json({
-        success: false,
-        message: 'Failed to load notification settings',
-      });
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to load notification settings',
+    });
   }
 });
 
@@ -1022,12 +1031,10 @@ router.put('/notification-settings', authRequired, async (req, res) => {
       .json({ success: true, settings: user.notificationSettings });
   } catch (error) {
     console.error('Update notification settings error:', error);
-    return res
-      .status(500)
-      .json({
-        success: false,
-        message: 'Failed to update notification settings',
-      });
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update notification settings',
+    });
   }
 });
 
@@ -1081,6 +1088,77 @@ router.get('/search', authRequired, async (req, res) => {
   } catch (error) {
     console.error('Search error:', error);
     return res.status(500).json({ success: false, message: 'Search failed' });
+  }
+});
+
+router.post('/consultation/livekit/token', authRequired, async (req, res) => {
+  try {
+    const user = await getAuthedUser(req);
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: 'User not found' });
+    }
+
+    if (!LIVEKIT_URL || !LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
+      return res.status(503).json({
+        success: false,
+        message:
+          'LiveKit is not configured on backend. Set LIVEKIT_URL, LIVEKIT_API_KEY, and LIVEKIT_API_SECRET.',
+      });
+    }
+
+    const requestedRoom = normalizeRoomName(req.body?.roomName || '');
+    const roomName =
+      requestedRoom || `oga-${Math.random().toString(36).slice(2, 10)}`;
+
+    const identityBase = normalizeRoomName(
+      user.id || req.auth?.userId || req.auth?.email || 'guest',
+    );
+    const identity = `${identityBase || 'guest'}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}`;
+
+    const participantName = (
+      req.body?.participantName ||
+      user.name ||
+      'OgaDoctor User'
+    )
+      .toString()
+      .trim()
+      .slice(0, 80);
+
+    const token = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
+      identity,
+      name: participantName,
+      ttl: LIVEKIT_TOKEN_TTL,
+    });
+
+    token.addGrant({
+      roomJoin: true,
+      room: roomName,
+      canPublish: true,
+      canSubscribe: true,
+      canPublishData: true,
+    });
+
+    const jwtToken = await token.toJwt();
+
+    return res.status(200).json({
+      success: true,
+      roomName,
+      serverUrl: LIVEKIT_URL,
+      token: jwtToken,
+      identity,
+      participantName,
+    });
+  } catch (error) {
+    console.error('LiveKit token error:', error);
+    return sendRouteError(
+      res,
+      error,
+      'Failed to generate consultation access token',
+    );
   }
 });
 

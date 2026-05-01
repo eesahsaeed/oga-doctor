@@ -55,6 +55,8 @@ function Hero() {
           </div>
           <div
             className="
+              hidden
+              md:block
               col-span-1
               relative
               my-8

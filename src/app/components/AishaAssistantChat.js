@@ -10,7 +10,7 @@ import {
 import { apiClient } from '../lib/api';
 
 const DEFAULT_WELCOME_MESSAGE =
-  'Hi, I am Alex, your Gemini health assistant. Share your symptoms and I will guide your next steps.';
+  'Hi, I am Aisha, your Gemini health assistant. Share your symptoms and I will guide your next steps.';
 
 function extractTextFromContent(content = []) {
   return content
@@ -70,7 +70,31 @@ function AssistantMessageBubble() {
   );
 }
 
-export default function AlexAssistantChat({
+function TypingIndicator() {
+  return (
+    <ThreadPrimitive.If running>
+      <div className="mb-3 flex justify-start">
+        <div
+          className="inline-flex items-center gap-1.5 rounded-2xl rounded-tl-sm border border-slate-200 bg-slate-100 px-3 py-2"
+          aria-label="Aisha is typing"
+        >
+          {[0, 1, 2].map((index) => (
+            <span
+              key={index}
+              className="h-2 w-2 rounded-full bg-slate-400 animate-bounce"
+              style={{
+                animationDelay: `${index * 120}ms`,
+                animationDuration: '900ms',
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    </ThreadPrimitive.If>
+  );
+}
+
+export default function AishaAssistantChat({
   compact = false,
   placeholder = 'Describe your symptoms...',
   welcomeMessage = DEFAULT_WELCOME_MESSAGE,
@@ -132,7 +156,7 @@ export default function AlexAssistantChat({
           >
             <ThreadPrimitive.Empty>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                Ask Alex a health question to get started.
+                Ask Aisha a health question to get started.
               </div>
             </ThreadPrimitive.Empty>
 
@@ -142,6 +166,7 @@ export default function AlexAssistantChat({
                 AssistantMessage: AssistantMessageBubble,
               }}
             />
+            <TypingIndicator />
           </ThreadPrimitive.Viewport>
 
           <ComposerPrimitive.Root className="mt-2 rounded-xl border border-slate-200 bg-white p-2">

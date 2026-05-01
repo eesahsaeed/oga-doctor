@@ -1,4 +1,4 @@
-import AlexAssistantChat from '../../components/AlexAssistantChat';
+import AishaAssistantChat from '../../components/AishaAssistantChat';
 
 export default function AIConsultationPage() {
   return (
@@ -11,7 +11,7 @@ export default function AIConsultationPage() {
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <AlexAssistantChat />
+        <AishaAssistantChat />
       </section>
     </div>
   );
