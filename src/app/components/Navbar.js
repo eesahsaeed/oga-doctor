@@ -125,14 +125,14 @@ export function Navbar() {
       shadow={false}
       blurred={false}
       color={isLightMode ? 'white' : 'transparent'}
-      className="fixed top-0 z-50 border-0 transition-colors duration-300 py-0"
+      className="fixed top-0 z-50 border-0 py-0 transition-colors duration-300"
     >
-      <div className="container mx-auto flex items-center justify-between px-4 sm:px-6 lg:px-8">
+      <div className="container mx-auto flex items-center justify-between px-3 sm:px-6 lg:px-8">
         <Link to="/" className="flex items-center py-0" onClick={closeMobile}>
           <img
             src="/image/ogaDoctor.png"
             alt="OgaDoctor Logo"
-            className={`h-16 w-16 m-2 transition-all duration-300 ${logoClass}`}
+            className={`m-1 h-12 w-12 transition-all duration-300 sm:m-2 sm:h-16 sm:w-16 ${logoClass}`}
           />
         </Link>
 
@@ -297,7 +297,7 @@ export function Navbar() {
           variant="text"
           color={iconColor}
           onClick={() => setOpen((cur) => !cur)}
-          className="ml-auto lg:hidden"
+          className="ml-auto h-10 w-10 lg:hidden"
         >
           {open ? (
             <XMarkIcon strokeWidth={2} className="h-7 w-7" />
@@ -308,7 +308,7 @@ export function Navbar() {
       </div>
 
       <Collapse open={open}>
-        <div className="container mx-auto mt-2 border-t border-blue-gray-50 bg-white px-6 py-6">
+        <div className="container mx-auto mt-2 border-t border-blue-gray-50 bg-white px-4 py-5 sm:px-6">
           <ul className="flex flex-col gap-5 text-blue-gray-900">
             {navItems.map((item) => (
               <MobileNavLink

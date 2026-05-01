@@ -23,8 +23,8 @@ const STATS = [
 
 export function MobileConvenience() {
   return (
-    <section className="py-20 px-6 md:px-8 bg-gray-50">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 xl:gap-16 max-w-7xl mx-auto items-center">
+    <section className="bg-gray-50 px-4 py-16 sm:px-6 md:px-8 lg:py-20">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 lg:grid-cols-2 xl:gap-16">
         <div className="flex justify-center lg:justify-start relative">
           <div className="relative w-full max-w-[360px] md:max-w-[420px] lg:max-w-[480px]">
             <img
@@ -41,21 +41,21 @@ export function MobileConvenience() {
           <Typography
             variant="h2"
             color="blue-gray"
-            className="mb-5 text-4xl md:text-5xl font-bold leading-tight"
+            className="mb-5 text-3xl font-bold leading-tight sm:text-4xl md:text-5xl"
           >
             Healthcare in Your Pocket
           </Typography>
 
           <Typography
             variant="lead"
-            className="mb-8 text-xl md:text-2xl !text-gray-600 leading-relaxed"
+            className="mb-8 text-lg !text-gray-600 leading-relaxed sm:text-xl md:text-2xl"
           >
             Consult certified doctors anytime, anywhere in Nigeria - right from
             your phone. No travel, no long queues, just fast, reliable care
             whenever you need it most.
           </Typography>
 
-          <div className="grid grid-cols-2 gap-6 md:gap-8 mt-6 mb-10">
+          <div className="mb-10 mt-6 grid grid-cols-2 gap-6 md:gap-8">
             {STATS.map(({ title, description }) => (
               <InfoCard key={title} title={title}>
                 {description}
@@ -63,7 +63,7 @@ export function MobileConvenience() {
             ))}
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center lg:items-start gap-4 mt-8">
+          <div className="mt-8 flex flex-col items-stretch gap-4 sm:flex-row sm:items-center lg:items-start">
             <Typography
               variant="h6"
               color="blue-gray"
@@ -75,7 +75,7 @@ export function MobileConvenience() {
             <Button
               size="lg"
               color="blue"
-              className="flex items-center gap-3 normal-case shadow-md hover:shadow-lg transition-all"
+              className="flex w-full items-center justify-center gap-3 normal-case shadow-md transition-all hover:shadow-lg sm:w-auto"
               onClick={() =>
                 window.open('https://apps.apple.com/ng/app/ogadoctor', '_blank')
               }
@@ -91,7 +91,7 @@ export function MobileConvenience() {
             <Button
               size="lg"
               color="green"
-              className="flex items-center gap-3 normal-case shadow-md hover:shadow-lg transition-all"
+              className="flex w-full items-center justify-center gap-3 normal-case shadow-md transition-all hover:shadow-lg sm:w-auto"
               onClick={() =>
                 window.open(
                   'https://play.google.com/store/apps/details?id=com.ogadoctor.app',

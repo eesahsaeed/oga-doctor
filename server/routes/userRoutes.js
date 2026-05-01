@@ -10,7 +10,11 @@ import { JWT_SECRET } from '../helper.js';
 const router = express.Router();
 
 function todayLabel(date = new Date()) {
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 function buildDefaultAppointments() {
@@ -111,17 +115,40 @@ function buildDefaultVitals() {
 
 function buildDefaultLabResults() {
   return [
-    { test: 'Full Blood Count (FBC)', date: 'Feb 18, 2026', status: 'Normal • Reviewed by Dr. Sarah' },
-    { test: 'Lipid Profile', date: 'Jan 29, 2026', status: 'Cholesterol slightly elevated' },
+    {
+      test: 'Full Blood Count (FBC)',
+      date: 'Feb 18, 2026',
+      status: 'Normal • Reviewed by Dr. Sarah',
+    },
+    {
+      test: 'Lipid Profile',
+      date: 'Jan 29, 2026',
+      status: 'Cholesterol slightly elevated',
+    },
     { test: 'HbA1c', date: 'Dec 12, 2025', status: '5.6% • Good control' },
   ];
 }
 
 function buildDefaultDocuments() {
   return [
-    { title: 'Chest X-Ray Report', date: 'Feb 10, 2026', icon: 'file-document', color: '#2563eb' },
-    { title: 'ECG Summary', date: 'Jan 15, 2026', icon: 'heart-pulse', color: '#ef4444' },
-    { title: 'Prescription - Jan 2026', date: 'Jan 31, 2026', icon: 'pill', color: '#f59e0b' },
+    {
+      title: 'Chest X-Ray Report',
+      date: 'Feb 10, 2026',
+      icon: 'file-document',
+      color: '#2563eb',
+    },
+    {
+      title: 'ECG Summary',
+      date: 'Jan 15, 2026',
+      icon: 'heart-pulse',
+      color: '#ef4444',
+    },
+    {
+      title: 'Prescription - Jan 2026',
+      date: 'Jan 31, 2026',
+      icon: 'pill',
+      color: '#f59e0b',
+    },
   ];
 }
 
@@ -141,6 +168,42 @@ function defaultNotificationSettings() {
   };
 }
 
+function defaultUserProfile() {
+  return {
+    phone: '',
+    dateOfBirth: '',
+    bloodGroup: '',
+    genotype: '',
+    address: '',
+    emergencyContactName: '',
+    emergencyContactPhone: '',
+    allergies: '',
+    medications: '',
+    heightCm: '',
+    weightKg: '',
+  };
+}
+
+function toOptionalString(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function sanitizeProfilePayload(input = {}) {
+  return {
+    phone: toOptionalString(input.phone),
+    dateOfBirth: toOptionalString(input.dateOfBirth),
+    bloodGroup: toOptionalString(input.bloodGroup),
+    genotype: toOptionalString(input.genotype),
+    address: toOptionalString(input.address),
+    emergencyContactName: toOptionalString(input.emergencyContactName),
+    emergencyContactPhone: toOptionalString(input.emergencyContactPhone),
+    allergies: toOptionalString(input.allergies),
+    medications: toOptionalString(input.medications),
+    heightCm: toOptionalString(input.heightCm),
+    weightKg: toOptionalString(input.weightKg),
+  };
+}
+
 function getSafeUser(user) {
   return {
     id: user.id,
@@ -149,7 +212,14 @@ function getSafeUser(user) {
     authType: user.authType,
     onboarding: user.onboarding || {},
     isPremium: Boolean(user.isPremium),
-    notificationSettings: user.notificationSettings || defaultNotificationSettings(),
+    notificationSettings:
+      user.notificationSettings || defaultNotificationSettings(),
+    profile: {
+      ...defaultUserProfile(),
+      ...(user.profile || {}),
+    },
+    createdAt: user.createdAt || null,
+    updatedAt: user.updatedAt || null,
   };
 }
 
@@ -183,13 +253,23 @@ async function hydrateUser(user) {
   if (!user.onboarding) {
     user.onboarding = {};
   }
+  if (!user.profile || typeof user.profile !== 'object') {
+    user.profile = defaultUserProfile();
+  } else {
+    user.profile = {
+      ...defaultUserProfile(),
+      ...user.profile,
+    };
+  }
 
   await user.save();
   return user;
 }
 
 function buildDashboard(user) {
-  const upcomingAppointments = (user.appointments || []).filter((item) => !item.isPast);
+  const upcomingAppointments = (user.appointments || []).filter(
+    (item) => !item.isPast,
+  );
   const recentVitals = (user.vitals || []).slice(0, 3);
 
   return {
@@ -202,21 +282,38 @@ function buildDashboard(user) {
     pregnancyWeeks: user.onboarding?.pregnancyWeeks || '',
     isPremium: Boolean(user.isPremium),
     services: [
-      { title: 'Consultation', icon: 'doctor', color: '#2563eb', bg: '#eff6ff' },
-      { title: 'Lab Tests', icon: 'test-tube', color: '#3b82f6', bg: '#eff6ff' },
+      {
+        title: 'Consultation',
+        icon: 'doctor',
+        color: '#2563eb',
+        bg: '#eff6ff',
+      },
+      {
+        title: 'Lab Tests',
+        icon: 'test-tube',
+        color: '#3b82f6',
+        bg: '#eff6ff',
+      },
       { title: 'Prescriptions', icon: 'pill', color: '#1d4ed8', bg: '#eff6ff' },
-      { title: 'Records', icon: 'folder-heart-outline', color: '#1e40af', bg: '#eff6ff' },
+      {
+        title: 'Records',
+        icon: 'folder-heart-outline',
+        color: '#1e40af',
+        bg: '#eff6ff',
+      },
     ],
     articles: [
       {
         title: 'Managing Stress in Busy Lagos Life',
         category: 'Mental Health',
-        image: 'https://images.unsplash.com/photo-1518644961665-ed172691bb7e?w=400',
+        image:
+          'https://images.unsplash.com/photo-1518644961665-ed172691bb7e?w=400',
       },
       {
         title: 'Why Blood Pressure Matters After 40',
         category: 'Cardiology',
-        image: 'https://images.unsplash.com/photo-1579684384363-3f4e6b7e3e4e?w=400',
+        image:
+          'https://images.unsplash.com/photo-1579684384363-3f4e6b7e3e4e?w=400',
       },
     ],
     upcomingAppointments,
@@ -251,6 +348,61 @@ Rules:
 - Keep responses plain language.
 `;
 
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+
+function isLikelyGoogleApiKey(value = '') {
+  const key = value.trim();
+  return key.startsWith('AIza') && key.length >= 20;
+}
+
+function getGeminiApiKey() {
+  const candidates = [
+    process.env.GEMINI_API_KEY,
+    process.env.GOOGLE_API_KEY,
+    process.env.GOOGLE_GEMINI_API_KEY,
+    process.env.GOOGLE_CLIENT_ID,
+  ]
+    .map((value) => (value || '').trim())
+    .filter(Boolean);
+
+  if (candidates.length === 0) {
+    return '';
+  }
+
+  const googleApiKey = candidates.find((value) => isLikelyGoogleApiKey(value));
+  return googleApiKey || '';
+}
+
+function toGeminiRole(role) {
+  return role === 'assistant' ? 'model' : 'user';
+}
+
+function normalizeGeminiModelName(modelName = '') {
+  const trimmed = (modelName || '').trim();
+  if (!trimmed) return '';
+  return trimmed.startsWith('models/')
+    ? trimmed.slice('models/'.length)
+    : trimmed;
+}
+
+function parseGeminiError(data) {
+  if (!data || typeof data !== 'object') {
+    return '';
+  }
+
+  const errorMessage = data?.error?.message;
+  if (typeof errorMessage === 'string' && errorMessage.trim()) {
+    return errorMessage.trim();
+  }
+
+  const firstDetail = data?.error?.details?.[0]?.message;
+  if (typeof firstDetail === 'string' && firstDetail.trim()) {
+    return firstDetail.trim();
+  }
+
+  return '';
+}
+
 function authRequired(req, res, next) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
@@ -266,6 +418,35 @@ function authRequired(req, res, next) {
   } catch (error) {
     return res.status(401).json({ success: false, message: 'Invalid token' });
   }
+}
+
+function isAwsCredentialError(error) {
+  const name = (error?.name || '').toString();
+  const message = (error?.message || '').toString().toLowerCase();
+
+  return (
+    name === 'UnrecognizedClientException' ||
+    name === 'InvalidSignatureException' ||
+    message.includes('security token included in the request is invalid') ||
+    message.includes('the security token') ||
+    message.includes('unrecognizedclientexception')
+  );
+}
+
+function sendRouteError(
+  res,
+  error,
+  fallbackMessage = 'Server error. Please try again later.',
+) {
+  if (isAwsCredentialError(error)) {
+    return res.status(503).json({
+      success: false,
+      message:
+        'Database credentials are invalid. Update AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY on the backend.',
+    });
+  }
+
+  return res.status(500).json({ success: false, message: fallbackMessage });
 }
 
 async function getAuthedUser(req) {
@@ -286,8 +467,13 @@ router.post(
   '/auth/signup',
   [
     body('name').trim().notEmpty().withMessage('Name is required'),
-    body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
-    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
+    body('email')
+      .isEmail()
+      .normalizeEmail()
+      .withMessage('Valid email is required'),
+    body('password')
+      .isLength({ min: 6 })
+      .withMessage('Password must be at least 6 characters long'),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -302,7 +488,12 @@ router.post(
       const existingUser = await findUserByEmail(normalizedEmail);
 
       if (existingUser) {
-        return res.status(409).json({ success: false, message: 'User with this email already exists' });
+        return res
+          .status(409)
+          .json({
+            success: false,
+            message: 'User with this email already exists',
+          });
       }
 
       const salt = await bcrypt.genSalt(12);
@@ -315,6 +506,7 @@ router.post(
         authType: 'EMAIL',
         password: hashedPassword,
         onboarding: { onboardingCompleted: false },
+        profile: defaultUserProfile(),
         isPremium: false,
         notificationSettings: defaultNotificationSettings(),
         appointments: buildDefaultAppointments(),
@@ -328,9 +520,13 @@ router.post(
       await newUser.save();
 
       const token = jwt.sign(
-        { userId: newUser.id, email: normalizedEmail, authType: newUser.authType },
+        {
+          userId: newUser.id,
+          email: normalizedEmail,
+          authType: newUser.authType,
+        },
         JWT_SECRET,
-        { expiresIn: '7d' }
+        { expiresIn: '7d' },
       );
 
       return res.status(201).json({
@@ -341,16 +537,21 @@ router.post(
       });
     } catch (error) {
       console.error('Signup error:', error);
-      return res.status(500).json({ success: false, message: 'Server error. Please try again later.' });
+      return sendRouteError(res, error);
     }
-  }
+  },
 );
 
 router.post(
   '/auth/signin',
   [
-    body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
-    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
+    body('email')
+      .isEmail()
+      .normalizeEmail()
+      .withMessage('Valid email is required'),
+    body('password')
+      .isLength({ min: 6 })
+      .withMessage('Password must be at least 6 characters long'),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -365,12 +566,16 @@ router.post(
       const user = await findUserByEmail(normalizedEmail);
 
       if (!user) {
-        return res.status(401).json({ success: false, message: 'Invalid email or password' });
+        return res
+          .status(401)
+          .json({ success: false, message: 'Invalid email or password' });
       }
 
       const isMatch = await bcrypt.compare(password, user.password);
       if (!isMatch) {
-        return res.status(401).json({ success: false, message: 'Invalid email or password' });
+        return res
+          .status(401)
+          .json({ success: false, message: 'Invalid email or password' });
       }
 
       await hydrateUser(user);
@@ -378,7 +583,7 @@ router.post(
       const token = jwt.sign(
         { userId: user.id, email: user.email, authType: user.authType },
         JWT_SECRET,
-        { expiresIn: '7d' }
+        { expiresIn: '7d' },
       );
 
       return res.status(200).json({
@@ -389,22 +594,24 @@ router.post(
       });
     } catch (error) {
       console.error('Signin error:', error);
-      return res.status(500).json({ success: false, message: 'Server error. Please try again later.' });
+      return sendRouteError(res, error);
     }
-  }
+  },
 );
 
 router.get('/auth/me', authRequired, async (req, res) => {
   try {
     const user = await getAuthedUser(req);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'User not found' });
     }
 
     return res.status(200).json({ success: true, user: getSafeUser(user) });
   } catch (error) {
     console.error('Get me error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to load profile' });
+    return sendRouteError(res, error, 'Failed to load profile');
   }
 });
 
@@ -412,7 +619,9 @@ router.put('/auth/profile', authRequired, async (req, res) => {
   try {
     const user = await getAuthedUser(req);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'User not found' });
     }
 
     const { name, isPremium } = req.body;
@@ -423,6 +632,17 @@ router.put('/auth/profile', authRequired, async (req, res) => {
       user.isPremium = isPremium;
     }
 
+    const profileInput =
+      req.body?.profile && typeof req.body.profile === 'object'
+        ? req.body.profile
+        : req.body || {};
+
+    user.profile = {
+      ...defaultUserProfile(),
+      ...(user.profile || {}),
+      ...sanitizeProfilePayload(profileInput),
+    };
+
     await user.save();
 
     return res.status(200).json({
@@ -432,7 +652,9 @@ router.put('/auth/profile', authRequired, async (req, res) => {
     });
   } catch (error) {
     console.error('Profile update error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to update profile' });
+    return res
+      .status(500)
+      .json({ success: false, message: 'Failed to update profile' });
   }
 });
 
@@ -440,7 +662,9 @@ router.post('/auth/onboarding', authRequired, async (req, res) => {
   try {
     const user = await getAuthedUser(req);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'User not found' });
     }
 
     const {
@@ -478,7 +702,9 @@ router.post('/auth/onboarding', authRequired, async (req, res) => {
     });
   } catch (error) {
     console.error('Onboarding save error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to save onboarding' });
+    return res
+      .status(500)
+      .json({ success: false, message: 'Failed to save onboarding' });
   }
 });
 
@@ -486,13 +712,17 @@ router.get('/home/dashboard', authRequired, async (req, res) => {
   try {
     const user = await getAuthedUser(req);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'User not found' });
     }
 
     return res.status(200).json({ success: true, data: buildDashboard(user) });
   } catch (error) {
     console.error('Dashboard error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to load dashboard' });
+    return res
+      .status(500)
+      .json({ success: false, message: 'Failed to load dashboard' });
   }
 });
 
@@ -500,7 +730,9 @@ router.get('/appointments', authRequired, async (req, res) => {
   try {
     const user = await getAuthedUser(req);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'User not found' });
     }
 
     const all = user.appointments || [];
@@ -511,7 +743,9 @@ router.get('/appointments', authRequired, async (req, res) => {
     });
   } catch (error) {
     console.error('Appointments list error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to load appointments' });
+    return res
+      .status(500)
+      .json({ success: false, message: 'Failed to load appointments' });
   }
 });
 
@@ -519,7 +753,9 @@ router.post('/appointments', authRequired, async (req, res) => {
   try {
     const user = await getAuthedUser(req);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'User not found' });
     }
 
     const {
@@ -561,7 +797,9 @@ router.post('/appointments', authRequired, async (req, res) => {
     return res.status(201).json({ success: true, appointment });
   } catch (error) {
     console.error('Create appointment error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to create appointment' });
+    return res
+      .status(500)
+      .json({ success: false, message: 'Failed to create appointment' });
   }
 });
 
@@ -569,14 +807,20 @@ router.patch('/appointments/:appointmentId', authRequired, async (req, res) => {
   try {
     const user = await getAuthedUser(req);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'User not found' });
     }
 
     const { appointmentId } = req.params;
-    const index = (user.appointments || []).findIndex((item) => item.id === appointmentId);
+    const index = (user.appointments || []).findIndex(
+      (item) => item.id === appointmentId,
+    );
 
     if (index === -1) {
-      return res.status(404).json({ success: false, message: 'Appointment not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'Appointment not found' });
     }
 
     const next = {
@@ -590,7 +834,9 @@ router.patch('/appointments/:appointmentId', authRequired, async (req, res) => {
     return res.status(200).json({ success: true, appointment: next });
   } catch (error) {
     console.error('Update appointment error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to update appointment' });
+    return res
+      .status(500)
+      .json({ success: false, message: 'Failed to update appointment' });
   }
 });
 
@@ -598,7 +844,9 @@ router.get('/notifications', authRequired, async (req, res) => {
   try {
     const user = await getAuthedUser(req);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'User not found' });
     }
 
     return res.status(200).json({
@@ -608,7 +856,9 @@ router.get('/notifications', authRequired, async (req, res) => {
     });
   } catch (error) {
     console.error('Notifications list error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to load notifications' });
+    return res
+      .status(500)
+      .json({ success: false, message: 'Failed to load notifications' });
   }
 });
 
@@ -616,12 +866,19 @@ router.post('/notifications', authRequired, async (req, res) => {
   try {
     const user = await getAuthedUser(req);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'User not found' });
     }
 
     const payload = req.body || {};
     if (!payload.title || !payload.description) {
-      return res.status(400).json({ success: false, message: 'title and description are required' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: 'title and description are required',
+        });
     }
 
     const notification = {
@@ -629,7 +886,9 @@ router.post('/notifications', authRequired, async (req, res) => {
       category: payload.category || 'system',
       title: payload.title,
       description: payload.description,
-      timestamp: payload.timestamp || `Today • ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`,
+      timestamp:
+        payload.timestamp ||
+        `Today • ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`,
       read: false,
       icon: payload.icon || 'notifications-outline',
       color: payload.color || '#64748b',
@@ -643,52 +902,77 @@ router.post('/notifications', authRequired, async (req, res) => {
     return res.status(201).json({ success: true, notification });
   } catch (error) {
     console.error('Create notification error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to create notification' });
+    return res
+      .status(500)
+      .json({ success: false, message: 'Failed to create notification' });
   }
 });
 
-router.patch('/notifications/:notificationId/read', authRequired, async (req, res) => {
-  try {
-    const user = await getAuthedUser(req);
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+router.patch(
+  '/notifications/:notificationId/read',
+  authRequired,
+  async (req, res) => {
+    try {
+      const user = await getAuthedUser(req);
+      if (!user) {
+        return res
+          .status(404)
+          .json({ success: false, message: 'User not found' });
+      }
+
+      const { notificationId } = req.params;
+      const index = (user.notifications || []).findIndex(
+        (item) => item.id === notificationId,
+      );
+
+      if (index === -1) {
+        return res
+          .status(404)
+          .json({ success: false, message: 'Notification not found' });
+      }
+
+      user.notifications[index] = {
+        ...user.notifications[index],
+        read: true,
+      };
+
+      await user.save();
+
+      return res
+        .status(200)
+        .json({ success: true, notification: user.notifications[index] });
+    } catch (error) {
+      console.error('Mark notification error:', error);
+      return res
+        .status(500)
+        .json({ success: false, message: 'Failed to update notification' });
     }
-
-    const { notificationId } = req.params;
-    const index = (user.notifications || []).findIndex((item) => item.id === notificationId);
-
-    if (index === -1) {
-      return res.status(404).json({ success: false, message: 'Notification not found' });
-    }
-
-    user.notifications[index] = {
-      ...user.notifications[index],
-      read: true,
-    };
-
-    await user.save();
-
-    return res.status(200).json({ success: true, notification: user.notifications[index] });
-  } catch (error) {
-    console.error('Mark notification error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to update notification' });
-  }
-});
+  },
+);
 
 router.post('/notifications/mark-all-read', authRequired, async (req, res) => {
   try {
     const user = await getAuthedUser(req);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'User not found' });
     }
 
-    user.notifications = (user.notifications || []).map((item) => ({ ...item, read: true }));
+    user.notifications = (user.notifications || []).map((item) => ({
+      ...item,
+      read: true,
+    }));
     await user.save();
 
-    return res.status(200).json({ success: true, message: 'All notifications marked as read' });
+    return res
+      .status(200)
+      .json({ success: true, message: 'All notifications marked as read' });
   } catch (error) {
     console.error('Mark all notifications error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to update notifications' });
+    return res
+      .status(500)
+      .json({ success: false, message: 'Failed to update notifications' });
   }
 });
 
@@ -696,7 +980,9 @@ router.get('/notification-settings', authRequired, async (req, res) => {
   try {
     const user = await getAuthedUser(req);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'User not found' });
     }
 
     return res.status(200).json({
@@ -705,7 +991,12 @@ router.get('/notification-settings', authRequired, async (req, res) => {
     });
   } catch (error) {
     console.error('Get notification settings error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to load notification settings' });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        message: 'Failed to load notification settings',
+      });
   }
 });
 
@@ -713,7 +1004,9 @@ router.put('/notification-settings', authRequired, async (req, res) => {
   try {
     const user = await getAuthedUser(req);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'User not found' });
     }
 
     const current = user.notificationSettings || defaultNotificationSettings();
@@ -724,10 +1017,17 @@ router.put('/notification-settings', authRequired, async (req, res) => {
 
     await user.save();
 
-    return res.status(200).json({ success: true, settings: user.notificationSettings });
+    return res
+      .status(200)
+      .json({ success: true, settings: user.notificationSettings });
   } catch (error) {
     console.error('Update notification settings error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to update notification settings' });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        message: 'Failed to update notification settings',
+      });
   }
 });
 
@@ -735,13 +1035,17 @@ router.get('/reports', authRequired, async (req, res) => {
   try {
     const user = await getAuthedUser(req);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'User not found' });
     }
 
     return res.status(200).json({ success: true, data: buildReports(user) });
   } catch (error) {
     console.error('Reports error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to load reports' });
+    return res
+      .status(500)
+      .json({ success: false, message: 'Failed to load reports' });
   }
 });
 
@@ -754,18 +1058,26 @@ router.get('/search', authRequired, async (req, res) => {
 
     const user = await getAuthedUser(req);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'User not found' });
     }
 
     const appointments = (user.appointments || [])
-      .filter((item) => `${item.reason} ${item.doctor} ${item.type}`.toLowerCase().includes(q))
+      .filter((item) =>
+        `${item.reason} ${item.doctor} ${item.type}`.toLowerCase().includes(q),
+      )
       .map((item) => ({ type: 'appointment', item }));
 
     const notifications = (user.notifications || [])
-      .filter((item) => `${item.title} ${item.description}`.toLowerCase().includes(q))
+      .filter((item) =>
+        `${item.title} ${item.description}`.toLowerCase().includes(q),
+      )
       .map((item) => ({ type: 'notification', item }));
 
-    return res.status(200).json({ success: true, results: [...appointments, ...notifications] });
+    return res
+      .status(200)
+      .json({ success: true, results: [...appointments, ...notifications] });
   } catch (error) {
     console.error('Search error:', error);
     return res.status(500).json({ success: false, message: 'Search failed' });
@@ -774,56 +1086,129 @@ router.get('/search', authRequired, async (req, res) => {
 
 router.post('/ai/health-chat', authRequired, async (req, res) => {
   try {
-    const apiKey = process.env.OPENAI_SECRET_KEY || '';
+    const apiKey = getGeminiApiKey();
     if (!apiKey) {
       return res.status(500).json({
         success: false,
-        message: 'OPENAI_SECRET_KEY is missing on backend',
+        message:
+          'Gemini API key is missing/invalid. Set GEMINI_API_KEY with an AIza key.',
       });
     }
 
     const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
     if (messages.length === 0) {
-      return res.status(400).json({ success: false, message: 'messages array is required' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'messages array is required' });
     }
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4.1-mini',
-        temperature: 0.4,
-        messages: [
-          { role: 'system', content: HEALTH_SYSTEM_PROMPT.trim() },
-          ...messages.map((msg) => ({
-            role: msg.role,
-            content: msg.content,
-          })),
-        ],
-      }),
-    });
+    const conversation = messages
+      .slice(-24)
+      .filter(
+        (msg) => msg && typeof msg.content === 'string' && msg.content.trim(),
+      )
+      .map((msg) => ({
+        role: toGeminiRole(msg.role),
+        parts: [{ text: msg.content.trim() }],
+      }));
 
-    if (!response.ok) {
-      const detail = await response.text();
-      return res.status(502).json({
+    if (conversation.length === 0) {
+      return res.status(400).json({
         success: false,
-        message: 'OpenAI request failed',
-        detail,
+        message: 'messages must include at least one non-empty message',
       });
     }
 
-    const data = await response.json();
-    const reply = data?.choices?.[0]?.message?.content?.trim() || '';
+    const modelCandidates = [
+      ...new Set(
+        [
+          GEMINI_MODEL,
+          'gemini-2.5-flash',
+          'gemini-2.0-flash',
+          'gemini-flash-latest',
+          'gemini-2.0-flash-lite',
+        ]
+          .map(normalizeGeminiModelName)
+          .filter(Boolean),
+      ),
+    ];
+    let lastProviderStatus = 502;
+    let lastProviderMessage = 'Gemini request failed';
+    let lastProviderDetail = null;
 
-    return res.status(200).json({ success: true, reply });
+    for (const rawModelName of modelCandidates) {
+      const modelName = normalizeGeminiModelName(rawModelName);
+      if (!modelName) {
+        continue;
+      }
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+          modelName,
+        )}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            systemInstruction: {
+              parts: [{ text: HEALTH_SYSTEM_PROMPT.trim() }],
+            },
+            contents: conversation,
+            generationConfig: {
+              temperature: 0.4,
+            },
+          }),
+        },
+      );
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const providerMessage = parseGeminiError(data);
+        lastProviderStatus = response.status || 502;
+        lastProviderMessage =
+          providerMessage || `Gemini request failed for model ${modelName}`;
+        lastProviderDetail = data;
+        console.error('Gemini health chat provider error:', {
+          modelName,
+          status: response.status,
+          providerMessage: lastProviderMessage,
+        });
+        continue;
+      }
+
+      const reply = (data?.candidates || [])
+        .flatMap((candidate) => candidate?.content?.parts || [])
+        .map((part) => (typeof part?.text === 'string' ? part.text : ''))
+        .join('\n')
+        .trim();
+
+      if (reply) {
+        return res.status(200).json({ success: true, reply });
+      }
+
+      lastProviderStatus = 502;
+      lastProviderMessage = `Gemini returned an empty response for model ${modelName}`;
+      lastProviderDetail = data;
+    }
+
+    return res
+      .status(
+        lastProviderStatus >= 400 && lastProviderStatus < 600
+          ? lastProviderStatus
+          : 502,
+      )
+      .json({
+        success: false,
+        message: `Gemini request failed: ${lastProviderMessage}`,
+        detail: lastProviderDetail,
+      });
   } catch (error) {
     console.error('AI health chat error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to generate AI response' });
+    return res
+      .status(500)
+      .json({ success: false, message: 'Failed to generate AI response' });
   }
 });
 
 export default router;
-

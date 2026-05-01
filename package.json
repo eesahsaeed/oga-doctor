@@ -23,6 +23,7 @@
     "npm": ">=10"
   },
   "dependencies": {
+    "@assistant-ui/react": "^0.12.28",
     "@aws-sdk/client-dynamodb": "^3.1014.0",
     "@heroicons/react": "^2.0.18",
     "@material-tailwind/react": "^2.1.2",

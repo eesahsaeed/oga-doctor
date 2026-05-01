@@ -1,16 +1,26 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import {
+  clearStoredFormDraft,
+  getRememberedUser,
+  getStoredFormDraft,
+  saveStoredFormDraft,
+} from '../../lib/session';
 
 export default function SignUpPage() {
   const navigate = useNavigate();
   const { signUp } = useAuth();
 
-  const [form, setForm] = useState({
-    name: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
+  const [form, setForm] = useState(() => {
+    const rememberedUser = getRememberedUser() || {};
+    const draft = getStoredFormDraft('signup', {});
+    return {
+      name: draft.name || rememberedUser.name || '',
+      email: draft.email || rememberedUser.email || '',
+      password: '',
+      confirmPassword: '',
+    };
   });
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -18,6 +28,13 @@ export default function SignUpPage() {
   const onChange = (field) => (event) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }));
   };
+
+  useEffect(() => {
+    saveStoredFormDraft('signup', {
+      name: form.name,
+      email: form.email,
+    });
+  }, [form.name, form.email]);
 
   const onSubmit = async (event) => {
     event.preventDefault();
@@ -51,6 +68,7 @@ export default function SignUpPage() {
         email: form.email.trim().toLowerCase(),
         password: form.password,
       });
+      clearStoredFormDraft('signup');
 
       navigate('/onboarding', { replace: true });
     } catch (submitError) {

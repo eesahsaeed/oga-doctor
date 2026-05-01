@@ -66,7 +66,6 @@ Feature-required variables:
 For same-domain frontend/backend deployment, these are optional:
 
 - `VITE_API_BASE_URL` (defaults to `/api`)
-- `VITE_SOCKET_URL` (defaults to current origin)
 
 ## 7) Keep-alive on Northflank
 

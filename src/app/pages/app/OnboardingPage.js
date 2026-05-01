@@ -1,8 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../lib/api';
-import { isOnboardingDone } from '../../lib/session';
+import {
+  clearStoredFormDraft,
+  getStoredFormDraft,
+  isOnboardingDone,
+  saveStoredFormDraft,
+} from '../../lib/session';
 
 const defaultForm = {
   language: 'en',
@@ -23,6 +28,7 @@ export default function OnboardingPage() {
   const [form, setForm] = useState(() => ({
     ...defaultForm,
     ...(user?.onboarding || {}),
+    ...getStoredFormDraft('onboarding', {}),
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -37,6 +43,10 @@ export default function OnboardingPage() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  useEffect(() => {
+    saveStoredFormDraft('onboarding', form);
+  }, [form]);
+
   const onSubmit = async (event) => {
     event.preventDefault();
     setSaving(true);
@@ -47,6 +57,7 @@ export default function OnboardingPage() {
         ...form,
         onboardingCompleted: true,
       });
+      clearStoredFormDraft('onboarding');
       await refreshProfile();
       navigate('/app/dashboard', { replace: true });
     } catch (submitError) {

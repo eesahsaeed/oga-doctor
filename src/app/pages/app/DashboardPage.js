@@ -60,7 +60,7 @@ export default function DashboardPage() {
         ? payload.results.length
         : 0;
       setSearchInfo(
-        `Found ${count} result${count === 1 ? '' : 's'} for “${searchQuery.trim()}”.`,
+        `Found ${count} result${count === 1 ? '' : 's'} for "${searchQuery.trim()}".`,
       );
     } catch (error) {
       setSearchInfo(error.message || 'Search failed.');
@@ -69,25 +69,25 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl bg-gradient-to-r from-blue-700 to-blue-600 p-6 text-white shadow-sm">
-        <h1 className="text-2xl sm:text-3xl font-bold">
+      <section className="rounded-2xl bg-gradient-to-r from-blue-700 to-blue-600 p-4 text-white shadow-sm sm:p-6">
+        <h1 className="text-2xl font-bold sm:text-3xl">
           Welcome to OgaDoctor Care
         </h1>
-        <p className="mt-2 text-blue-100 max-w-2xl">
+        <p className="mt-2 max-w-2xl text-blue-100">
           Book consultations, review health reports, chat with AI support, and
           join video visits from one place.
         </p>
 
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <Link
             to="/app/consultation/chat"
-            className="rounded-xl bg-white/20 px-4 py-2 text-sm font-semibold text-white hover:bg-white/30"
+            className="w-full rounded-xl bg-white/20 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-white/30 sm:w-auto"
           >
             Start AI Consultation
           </Link>
           <Link
             to="/app/consultation/video"
-            className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+            className="w-full rounded-xl bg-white px-4 py-2 text-center text-sm font-semibold text-blue-700 hover:bg-blue-50 sm:w-auto"
           >
             Join Video Consultation
           </Link>
@@ -101,7 +101,7 @@ export default function DashboardPage() {
         <label className="text-sm font-medium text-slate-700">
           Search records and symptoms
         </label>
-        <div className="mt-2 flex flex-col sm:flex-row gap-2">
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
           <input
             type="text"
             value={searchQuery}
@@ -121,7 +121,7 @@ export default function DashboardPage() {
         )}
       </form>
 
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-sm text-slate-500">Upcoming Appointments</p>
           <p className="mt-1 text-3xl font-bold text-slate-900">
@@ -138,7 +138,7 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:col-span-2 lg:col-span-1">
           <p className="text-sm text-slate-500">Membership</p>
           <p className="mt-1 text-3xl font-bold text-slate-900">
             {dashboard.isPremium ? 'Premium' : 'Standard'}
@@ -147,12 +147,12 @@ export default function DashboardPage() {
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold text-slate-900">Today’s Tip</h2>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-lg font-semibold text-slate-900">Today's Tip</h2>
           <button
             type="button"
             onClick={loadDashboard}
-            className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 sm:w-auto"
           >
             {loading ? 'Refreshing...' : 'Refresh'}
           </button>
@@ -160,21 +160,24 @@ export default function DashboardPage() {
         <p className="mt-1 text-sm font-semibold text-blue-700">
           {dashboard.tip?.title}
         </p>
-        <p className="mt-2 text-sm text-slate-700 leading-6">
+        <p className="mt-2 text-sm leading-6 text-slate-700">
           {dashboard.tip?.body}
         </p>
       </section>
 
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">
             Recent Vitals
           </h2>
           <div className="mt-3 space-y-2">
+            {(dashboard.recentVitals || []).length === 0 && (
+              <p className="text-sm text-slate-500">No vitals yet.</p>
+            )}
             {(dashboard.recentVitals || []).map((item) => (
               <div
                 key={item.id}
-                className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 flex items-center justify-between"
+                className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2"
               >
                 <span className="text-sm text-slate-600">{item.metric}</span>
                 <span className="text-sm font-semibold text-slate-900">
@@ -190,13 +193,18 @@ export default function DashboardPage() {
             Upcoming Appointments
           </h2>
           <div className="mt-3 space-y-2">
+            {(dashboard.upcomingAppointments || []).length === 0 && (
+              <p className="text-sm text-slate-500">
+                No upcoming appointments.
+              </p>
+            )}
             {(dashboard.upcomingAppointments || []).map((appt) => (
               <div
                 key={appt.id}
                 className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2"
               >
                 <p className="text-sm font-semibold text-slate-900">
-                  {appt.type} • {appt.time}
+                  {appt.type} - {appt.time}
                 </p>
                 <p className="text-xs text-slate-600">{appt.doctor}</p>
                 <p className="text-xs text-slate-500">{appt.reason}</p>
@@ -210,16 +218,16 @@ export default function DashboardPage() {
         <h2 className="text-lg font-semibold text-slate-900">
           Recommended Articles
         </h2>
-        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
           {(dashboard.articles || []).map((article, index) => (
             <article
               key={`${article.title}-${index}`}
-              className="rounded-xl border border-slate-100 overflow-hidden"
+              className="overflow-hidden rounded-xl border border-slate-100"
             >
               <img
                 src={article.image}
                 alt={article.title}
-                className="h-36 w-full object-cover"
+                className="h-32 w-full object-cover sm:h-36"
               />
               <div className="p-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">

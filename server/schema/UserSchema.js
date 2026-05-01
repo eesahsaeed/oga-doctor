@@ -1,188 +1,170 @@
 import dynamoose from 'dynamoose';
-import { AWS_SECRET_ACCESS_KEY, AWS_REGION, AWS_ACCESS_KEY_ID } from '../helper.js';
+import {
+  AWS_SECRET_ACCESS_KEY,
+  AWS_REGION,
+  AWS_ACCESS_KEY_ID,
+} from '../helper.js';
 
-// ✅ Correct way to configure custom DynamoDB instance in Dynamoose (v3+)
-const ddb = new dynamoose.aws.ddb.DynamoDB({
-  credentials: {
-    accessKeyId: AWS_ACCESS_KEY_ID,
-    secretAccessKey: AWS_SECRET_ACCESS_KEY,
-  },
-  region: AWS_REGION,
-});
+const memoryUsers = new Map();
 
-// Set the custom DynamoDB instance for Dynamoose to use
-dynamoose.aws.ddb.set(ddb);
+class InMemoryQuery {
+  constructor(field) {
+    this.field = field;
+    this.value = undefined;
+  }
+
+  eq(value) {
+    this.value = value;
+    return this;
+  }
+
+  using() {
+    return this;
+  }
+
+  async exec() {
+    if (this.field === 'email') {
+      const email = (this.value || '').toString().toLowerCase();
+      return Array.from(memoryUsers.values()).filter(
+        (user) => (user.email || '').toLowerCase() === email,
+      );
+    }
+
+    return [];
+  }
+}
+
+class InMemoryUser {
+  constructor(payload = {}) {
+    Object.assign(this, payload);
+  }
+
+  static query(field) {
+    return new InMemoryQuery(field);
+  }
+
+  async save() {
+    if (!this.id) {
+      throw new Error('id is required');
+    }
+
+    const now = new Date().toISOString();
+    this.updatedAt = now;
+    this.createdAt = this.createdAt || now;
+    memoryUsers.set(this.id, this);
+    return this;
+  }
+}
+
+const hasAwsCredentials =
+  Boolean(AWS_ACCESS_KEY_ID) && Boolean(AWS_SECRET_ACCESS_KEY);
+
+const forceInMemoryStore = process.env.USE_IN_MEMORY_DB === 'true';
+const useInMemoryStore = forceInMemoryStore || !hasAwsCredentials;
+
+if (hasAwsCredentials && !forceInMemoryStore) {
+  try {
+    const ddb = new dynamoose.aws.ddb.DynamoDB({
+      credentials: {
+        accessKeyId: AWS_ACCESS_KEY_ID,
+        secretAccessKey: AWS_SECRET_ACCESS_KEY,
+      },
+      region: AWS_REGION,
+    });
+
+    dynamoose.aws.ddb.set(ddb);
+  } catch (error) {
+    console.error(
+      '[dynamodb] Failed to initialize DynamoDB client:',
+      error?.message || error,
+    );
+  }
+}
 
 const userSchema = new dynamoose.Schema(
   {
     id: {
       type: String,
-      hashKey: true,        // Primary Key (Partition Key)
+      hashKey: true,
       required: true,
     },
-
-    email: { 
-      type: String, 
-      rangeKey: true, 
+    email: {
+      type: String,
+      rangeKey: true,
       required: true,
       index: {
-        name: "emailIndex",
+        name: 'emailIndex',
         global: true,
-        project: true
-      }
+        project: true,
+      },
     },
-
     password: {
       type: String,
       required: true,
     },
-
     authType: {
       type: String,
-      required: true
+      required: true,
     },
     name: String,
     onboarding: Object,
     isPremium: {
       type: Boolean,
-      default: false
+      default: false,
     },
     notificationSettings: Object,
     appointments: {
       type: Array,
       schema: [Object],
-      default: []
+      default: [],
     },
     notifications: {
       type: Array,
       schema: [Object],
-      default: []
+      default: [],
     },
     vitals: {
       type: Array,
       schema: [Object],
-      default: []
+      default: [],
     },
     labResults: {
       type: Array,
       schema: [Object],
-      default: []
+      default: [],
     },
     documents: {
       type: Array,
       schema: [Object],
-      default: []
+      default: [],
     },
     vaccinations: {
       type: Array,
       schema: [String],
-      default: []
-    }
+      default: [],
+    },
   },
   {
-    timestamps: true,       // Automatically adds & manages createdAt + updatedAt
-    saveUnknown: true,      // Allows app feature data without breaking writes
-  }
+    timestamps: true,
+    saveUnknown: true,
+  },
 );
 
-// Create the model
-const User = dynamoose.model('User', userSchema);
+const User = dynamoose.model('User', userSchema, {
+  create: false,
+  update: false,
+  waitForActive: false,
+});
 
-export default User;
+let UserModel = User;
 
-// dynamoose.aws.ddb.set(ddb);
+if (useInMemoryStore) {
+  const reason = forceInMemoryStore
+    ? 'USE_IN_MEMORY_DB=true'
+    : 'AWS credentials missing';
 
-// const TABLE_NAME = 'HealthAppData';
+  console.log(`[storage] Using in-memory user store (${reason}).`);
+  UserModel = InMemoryUser;
+}
 
-// const HealthSchema = new dynamoose.Schema(
-//   {
-//     PK: { type: String, hashKey: true, required: true },
-//     email: { type: String, rangeKey: true, required: true },
-
-//     entityType: {
-//       type: String,
-//       required: true,
-//       enum: ['PROFILE','APPOINTMENT','VITAL','LAB_RESULT','DOCUMENT','NOTIFICATION','PREGNANCY_MILESTONE','PRESCRIPTION'],
-//     },
-
-//     userId: String,
-
-//     // Profile fields
-//     language: String,
-//     gender: String,
-//     age: Number,
-//     bloodType: String,
-//     heightCm: Number,
-//     weightKg: Number,
-//     bmi: Number,
-//     mainHealthCategory: String,
-//     subHealthCategory: String,
-//     womensStage: String,
-//     pregnancyWeeks: Number,
-//     dueDate: String,
-//     isFirstPregnancy: Boolean,
-//     conditions: Array,
-//     allergies: Array,
-//     currentMedications: Array,
-//     isPremium: Boolean,
-//     onboardingCompleted: Boolean,
-    
-//     // FIX: Change Mixed to Object
-//     uiPreferences: Object,
-//     preferences: Object,
-//     customData: Object,
-
-//     // Appointment
-//     apptId: String,
-//     startTime: String,
-//     endTime: String,
-//     doctor: String,
-//     type: String,
-//     reason: String,
-//     status: String,
-//     location: String,
-//     notes: String,
-
-//     // Vital
-//     vitalType: String,
-//     value: Number,
-//     unit: String,
-//     trend: String,
-//     recordedAt: String,
-
-//     // Notification
-//     title: String,
-//     description: String,
-//     category: String,
-//     read: Boolean,
-//     actionLabel: String,
-//     notificationTimestamp: String,
-
-//     // GSI fields
-//     GSI1PK: String,
-//     GSI1SK: String,
-//     GSI2PK: String,
-//     GSI2SK: String,
-
-//     // Note: timestamps: true handles createdAt/updatedAt automatically
-//     // You don't strictly need them here unless you want to manually override
-//   },
-//   {
-//     timestamps: true,
-//     // Allows any keys inside the Objects or at the root level
-//     saveUnknown: true, 
-//     throughput: "ON_DEMAND", // Recommended over fixed 5/5 unless strictly budgeting
-//     indexes: [
-//       { name: 'WomensStageIndex', global: true, hashKey: 'womensStage', rangeKey: 'updatedAt', project: true },
-//       { name: 'AppointmentsByTime', global: true, hashKey: 'GSI1PK', rangeKey: 'GSI1SK', project: true },
-//       { name: 'NotificationsByTime', global: true, hashKey: 'GSI2PK', rangeKey: 'GSI2SK', project: true },
-//     ],
-//   }
-// );
-
-// const HealthModel = dynamoose.model('HealthModel', HealthSchema, { 
-//   tableName: TABLE_NAME,
-//   create: false // Set to true if you want Dynamoose to create the table for you
-// });
-
-// export { HealthModel };
+export default UserModel;

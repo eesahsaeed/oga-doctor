@@ -1,8 +1,42 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import MarketingPageLayout from '../../components/marketing/MarketingPageLayout';
+import { useAuth } from '../../context/AuthContext';
+import {
+  getRememberedUser,
+  getStoredFormDraft,
+  saveStoredFormDraft,
+} from '../../lib/session';
 
 export default function ContactPage() {
+  const { user } = useAuth();
   const [sent, setSent] = useState(false);
+  const [form, setForm] = useState(() => {
+    const rememberedUser = getRememberedUser() || {};
+    const draft = getStoredFormDraft('contact', {});
+    return {
+      name: draft.name || rememberedUser.name || '',
+      email: draft.email || rememberedUser.email || '',
+      message: draft.message || '',
+    };
+  });
+
+  useEffect(() => {
+    if (!user) return;
+
+    setForm((prev) => ({
+      ...prev,
+      name: prev.name || user.name || '',
+      email: prev.email || user.email || '',
+    }));
+  }, [user]);
+
+  useEffect(() => {
+    saveStoredFormDraft('contact', form);
+  }, [form]);
+
+  const onChange = (field) => (event) => {
+    setForm((prev) => ({ ...prev, [field]: event.target.value }));
+  };
 
   return (
     <MarketingPageLayout
@@ -44,6 +78,7 @@ export default function ContactPage() {
           onSubmit={(event) => {
             event.preventDefault();
             setSent(true);
+            setForm((prev) => ({ ...prev, message: '' }));
           }}
         >
           <label className="block">
@@ -51,6 +86,8 @@ export default function ContactPage() {
               Your name
             </span>
             <input
+              value={form.name}
+              onChange={onChange('name')}
               className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
               required
             />
@@ -60,6 +97,8 @@ export default function ContactPage() {
             <span className="text-sm font-medium text-slate-700">Email</span>
             <input
               type="email"
+              value={form.email}
+              onChange={onChange('email')}
               className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
               required
             />
@@ -68,6 +107,8 @@ export default function ContactPage() {
           <label className="block">
             <span className="text-sm font-medium text-slate-700">Message</span>
             <textarea
+              value={form.message}
+              onChange={onChange('message')}
               className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
               rows={4}
               required

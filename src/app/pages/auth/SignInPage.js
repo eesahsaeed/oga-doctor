@@ -1,14 +1,27 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { isOnboardingDone } from '../../lib/session';
+import {
+  clearStoredFormDraft,
+  getRememberedUser,
+  getStoredFormDraft,
+  isOnboardingDone,
+  saveStoredFormDraft,
+} from '../../lib/session';
 
 export default function SignInPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { signIn } = useAuth();
 
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [form, setForm] = useState(() => {
+    const rememberedUser = getRememberedUser() || {};
+    const draft = getStoredFormDraft('signin', {});
+    return {
+      email: draft.email || rememberedUser.email || '',
+      password: '',
+    };
+  });
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -20,6 +33,12 @@ export default function SignInPage() {
   const onChange = (field) => (event) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }));
   };
+
+  useEffect(() => {
+    saveStoredFormDraft('signin', {
+      email: form.email,
+    });
+  }, [form.email]);
 
   const onSubmit = async (event) => {
     event.preventDefault();
@@ -36,6 +55,7 @@ export default function SignInPage() {
         email: form.email.trim().toLowerCase(),
         password: form.password,
       });
+      clearStoredFormDraft('signin');
 
       if (!isOnboardingDone(payload?.user)) {
         navigate('/onboarding', { replace: true });

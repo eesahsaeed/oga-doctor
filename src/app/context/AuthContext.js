@@ -4,10 +4,15 @@ import {
   clearSession,
   getStoredToken,
   getStoredUser,
+  saveRememberedUser,
   saveSession,
 } from '../lib/session';
 
 const AuthContext = createContext(null);
+
+function isAuthError(error) {
+  return error?.status === 401 || error?.status === 403;
+}
 
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => getStoredToken());
@@ -23,17 +28,36 @@ export function AuthProvider({ children }) {
         return;
       }
 
+      if (active) {
+        setLoading(true);
+      }
+
       try {
         const payload = await apiClient.me();
         if (active && payload?.success && payload.user) {
           setUser(payload.user);
           saveSession({ token, user: payload.user });
+          saveRememberedUser(payload.user);
         }
-      } catch (_error) {
+      } catch (error) {
         if (active) {
-          clearSession();
-          setToken('');
-          setUser(null);
+          if (isAuthError(error)) {
+            // Only clear session on real auth failures (expired/invalid token).
+            clearSession();
+            setToken('');
+            setUser(null);
+          } else {
+            // Keep using localStorage session during transient backend/network issues.
+            const fallbackToken = getStoredToken();
+            const fallbackUser = getStoredUser();
+
+            if (fallbackToken) {
+              setToken((current) => current || fallbackToken);
+            }
+            if (fallbackUser) {
+              setUser((current) => current || fallbackUser);
+            }
+          }
         }
       } finally {
         if (active) {
@@ -55,6 +79,7 @@ export function AuthProvider({ children }) {
       setToken(payload.token);
       setUser(payload.user);
       saveSession({ token: payload.token, user: payload.user });
+      saveRememberedUser(payload.user);
     }
     return payload;
   };
@@ -65,6 +90,7 @@ export function AuthProvider({ children }) {
       setToken(response.token);
       setUser(response.user);
       saveSession({ token: response.token, user: response.user });
+      saveRememberedUser(response.user);
     }
     return response;
   };
@@ -75,6 +101,7 @@ export function AuthProvider({ children }) {
     if (payload?.success && payload.user) {
       setUser(payload.user);
       saveSession({ token, user: payload.user });
+      saveRememberedUser(payload.user);
       return payload.user;
     }
     return null;

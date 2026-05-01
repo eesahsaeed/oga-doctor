@@ -13,6 +13,10 @@ import { startKeepAliveCron } from './services/keepAlive.js';
 
 dotenv.config();
 
+process.on('unhandledRejection', (reason) => {
+  console.error('[server] Unhandled promise rejection:', reason);
+});
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -118,6 +122,16 @@ setupSocket(io);
 const PORT = process.env.PORT || 4000;
 
 export function startServer(port = PORT) {
+  httpServer.on('error', (error) => {
+    if (error?.code === 'EADDRINUSE') {
+      console.error(
+        `[server] Port ${port} is already in use. Stop the existing process or change PORT.`,
+      );
+      return;
+    }
+    console.error('[server] Failed to start:', error?.message || error);
+  });
+
   return httpServer.listen(port, () => {
     console.log(`Server running on port ${port}`);
     console.log(`Socket.io ready at ws://localhost:${port}`);

@@ -5,7 +5,10 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(
   '',
 );
 
-async function request(path, { method = 'GET', body, headers = {} } = {}) {
+async function request(
+  path,
+  { method = 'GET', body, headers = {}, signal } = {},
+) {
   const token = getStoredToken();
 
   const requestHeaders = {
@@ -25,6 +28,7 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
     method,
     headers: requestHeaders,
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    signal,
   });
 
   const contentType = response.headers.get('content-type') || '';
@@ -82,6 +86,10 @@ export const apiClient = {
     request('/notification-settings', { method: 'PUT', body: payload }),
 
   reports: () => request('/reports'),
-  healthChat: (messages) =>
-    request('/ai/health-chat', { method: 'POST', body: { messages } }),
+  healthChat: (messages, options = {}) =>
+    request('/ai/health-chat', {
+      method: 'POST',
+      body: { messages },
+      signal: options.signal,
+    }),
 };

@@ -13,7 +13,7 @@ const navItems = [
 
 function linkClassName({ isActive }) {
   return [
-    'px-3 py-2 rounded-xl text-sm font-medium transition-colors whitespace-nowrap',
+    'whitespace-nowrap rounded-xl px-2.5 py-2 text-xs font-medium transition-colors sm:px-3 sm:text-sm',
     isActive ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-100',
   ].join(' ');
 }
@@ -30,29 +30,31 @@ export default function AppShell() {
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-          <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="mx-auto max-w-7xl px-3 py-3 sm:px-6 lg:px-8">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <button
               type="button"
               onClick={() => navigate('/app/dashboard')}
-              className="text-left"
+              className="min-w-0 text-left"
             >
-              <p className="text-xl font-bold text-slate-900">OgaDoctor Care</p>
-              <p className="text-xs text-slate-500">
-                {user?.name || 'Patient'} � {user?.email || 'Signed in'}
+              <p className="text-lg font-bold text-slate-900 sm:text-xl">
+                OgaDoctor Care
+              </p>
+              <p className="max-w-[88vw] truncate text-xs text-slate-500 sm:max-w-none">
+                {user?.name || 'Patient'} - {user?.email || 'Signed in'}
               </p>
             </button>
 
             <button
               type="button"
               onClick={onSignOut}
-              className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 sm:w-auto"
             >
               Sign Out
             </button>
           </div>
 
-          <nav className="flex items-center gap-2 overflow-x-auto pb-1">
+          <nav className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {navItems.map((item) => (
               <NavLink key={item.to} to={item.to} className={linkClassName}>
                 {item.label}
@@ -62,7 +64,7 @@ export default function AppShell() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-6 lg:px-8">
         <Outlet />
       </main>
     </div>
