@@ -865,8 +865,9 @@ export default function VideoConsultationPage() {
       syncRemoteVideo(room);
       syncRemoteTiles(room);
     } catch (joinError) {
-      setError(joinError.message || 'Unable to join room.');
-      setStatus('Join failed. Check LiveKit backend configuration and retry.');
+      const joinMessage = joinError?.message || 'Unable to join room.';
+      setError(joinMessage);
+      setStatus(`Join failed: ${joinMessage}`);
       await leaveRoom(true);
     } finally {
       setIsJoining(false);

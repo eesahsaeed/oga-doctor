@@ -13,6 +13,7 @@ const router = express.Router();
 function getLiveKitConfig() {
   return {
     url: (process.env.LIVEKIT_URL || '').trim(),
+    publicUrl: (process.env.LIVEKIT_PUBLIC_URL || '').trim(),
     apiKey: (process.env.LIVEKIT_API_KEY || '').trim(),
     apiSecret: (process.env.LIVEKIT_API_SECRET || '').trim(),
     tokenTtl: (process.env.LIVEKIT_TOKEN_TTL || '2h').trim(),
@@ -35,6 +36,126 @@ function normalizeRoomName(rawValue = '') {
     .replace(/-+/g, '-')
     .slice(0, 80);
   return cleaned;
+}
+
+function isLocalHostname(hostname = '') {
+  const value = hostname.toLowerCase();
+  if (!value) return true;
+  if (value === 'localhost' || value === '127.0.0.1' || value === '::1')
+    return true;
+  if (value.endsWith('.local')) return true;
+
+  const ipv4Match = value.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!ipv4Match) return false;
+
+  const [a, b] = ipv4Match.slice(1).map((octet) => Number(octet));
+  if (a === 10 || a === 127) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 169 && b === 254) return true;
+  return false;
+}
+
+function requestIsSecure(req) {
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || '')
+    .split(',')[0]
+    .trim()
+    .toLowerCase();
+  if (forwardedProto === 'https' || forwardedProto === 'wss') return true;
+
+  const origin = String(req.headers.origin || '').trim();
+  if (origin) {
+    try {
+      return new URL(origin).protocol === 'https:';
+    } catch (_error) {
+      // ignore malformed origin headers and fall back to express metadata
+    }
+  }
+
+  return Boolean(req.secure);
+}
+
+function requestIsLikelyPublic(req) {
+  if ((process.env.NODE_ENV || '').trim().toLowerCase() === 'production') {
+    return true;
+  }
+
+  const hostHeader = String(
+    req.headers['x-forwarded-host'] || req.headers.host || '',
+  )
+    .split(',')[0]
+    .trim()
+    .toLowerCase();
+
+  if (!hostHeader) return requestIsSecure(req);
+
+  const hostName = hostHeader.split(':')[0];
+  if (isLocalHostname(hostName)) return requestIsSecure(req);
+  return true;
+}
+
+function normalizeLiveKitUrl(rawUrl, req) {
+  const trimmed = String(rawUrl || '').trim();
+  if (!trimmed) {
+    return { ok: false, message: 'LIVEKIT_URL is empty.' };
+  }
+
+  let candidate = trimmed;
+  if (!/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(candidate)) {
+    candidate = `${requestIsSecure(req) ? 'wss://' : 'ws://'}${candidate}`;
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(candidate);
+  } catch (_error) {
+    return {
+      ok: false,
+      message:
+        'LIVEKIT_URL is invalid. Use a valid ws:// or wss:// server address.',
+    };
+  }
+
+  let protocol = parsed.protocol.toLowerCase();
+  if (protocol === 'http:') protocol = 'ws:';
+  if (protocol === 'https:') protocol = 'wss:';
+  if (protocol !== 'ws:' && protocol !== 'wss:') {
+    return {
+      ok: false,
+      message: 'LIVEKIT_URL must start with ws:// or wss://.',
+    };
+  }
+
+  if (requestIsSecure(req) && protocol === 'ws:') {
+    protocol = 'wss:';
+  }
+
+  const normalizedPath =
+    parsed.pathname && parsed.pathname !== '/'
+      ? parsed.pathname.replace(/\/+$/, '')
+      : '';
+  const normalizedUrl = `${protocol}//${parsed.host}${normalizedPath}`;
+  const allowPrivate = String(process.env.LIVEKIT_ALLOW_PRIVATE_URL || '')
+    .trim()
+    .toLowerCase();
+  const allowPrivateUrl = allowPrivate === 'true' || allowPrivate === '1';
+
+  if (
+    requestIsLikelyPublic(req) &&
+    isLocalHostname(parsed.hostname) &&
+    !allowPrivateUrl
+  ) {
+    return {
+      ok: false,
+      message:
+        'LIVEKIT_URL points to localhost/private network. In production, set LIVEKIT_URL to a public wss:// endpoint.',
+    };
+  }
+
+  return {
+    ok: true,
+    url: normalizedUrl,
+  };
 }
 
 function buildDefaultAppointments() {
@@ -1106,11 +1227,26 @@ async function issueLiveKitConsultationToken(req, res) {
         .json({ success: false, message: 'User not found' });
     }
 
-    if (!liveKit.url || !liveKit.apiKey || !liveKit.apiSecret) {
+    if (
+      (!liveKit.url && !liveKit.publicUrl) ||
+      !liveKit.apiKey ||
+      !liveKit.apiSecret
+    ) {
       return res.status(503).json({
         success: false,
         message:
-          'LiveKit is not configured on backend. Set LIVEKIT_URL, LIVEKIT_API_KEY, and LIVEKIT_API_SECRET.',
+          'LiveKit is not configured on backend. Set LIVEKIT_URL (or LIVEKIT_PUBLIC_URL), LIVEKIT_API_KEY, and LIVEKIT_API_SECRET.',
+      });
+    }
+
+    const liveKitUrl = normalizeLiveKitUrl(
+      liveKit.publicUrl || liveKit.url,
+      req,
+    );
+    if (!liveKitUrl.ok) {
+      return res.status(503).json({
+        success: false,
+        message: liveKitUrl.message,
       });
     }
 
@@ -1152,7 +1288,7 @@ async function issueLiveKitConsultationToken(req, res) {
       success: true,
       provider: 'livekit',
       roomName,
-      serverUrl: liveKit.url,
+      serverUrl: liveKitUrl.url,
       token: jwtToken,
       identity,
       participantName,

@@ -36,6 +36,7 @@ Default ports:
 Required:
 
 - `LIVEKIT_URL`
+- `LIVEKIT_PUBLIC_URL` (recommended for production browsers)
 - `LIVEKIT_API_KEY`
 - `LIVEKIT_API_SECRET`
 - `LIVEKIT_TOKEN_TTL` (optional, default `2h`)
@@ -55,6 +56,13 @@ livekit-server --config livekit.yaml
 
 5. Set app server URL in `.env`:
    - `LIVEKIT_URL=ws://localhost:7880`
+
+### Production self-host notes
+
+- Browsers must connect through a public secure WebSocket URL (`wss://...`).
+- Set `LIVEKIT_PUBLIC_URL` to your public LiveKit endpoint.
+- Keep `LIVEKIT_URL` as internal/private if needed by your infra.
+- If `LIVEKIT_PUBLIC_URL` is not set, backend falls back to `LIVEKIT_URL`.
 
 Backend endpoint used by frontend:
 
