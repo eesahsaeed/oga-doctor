@@ -30,6 +30,8 @@ import ContactPage from './pages/marketing/ContactPage.js';
 import BlogPage from './pages/marketing/BlogPage.js';
 import MessagesPage from './pages/marketing/MessagesPage.js';
 
+// main entry point for the React application
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
