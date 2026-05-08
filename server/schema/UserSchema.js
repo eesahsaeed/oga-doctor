@@ -34,6 +34,12 @@ class InMemoryQuery {
   }
 }
 
+class InMemoryScan {
+  async exec() {
+    return Array.from(memoryUsers.values());
+  }
+}
+
 class InMemoryUser {
   constructor(payload = {}) {
     Object.assign(this, payload);
@@ -41,6 +47,10 @@ class InMemoryUser {
 
   static query(field) {
     return new InMemoryQuery(field);
+  }
+
+  static scan() {
+    return new InMemoryScan();
   }
 
   async save() {

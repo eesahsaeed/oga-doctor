@@ -1,3 +1,5 @@
+import { isOnboardingCompleteForUser } from './account';
+
 const TOKEN_KEY = 'ogadoctor_token';
 const USER_KEY = 'ogadoctor_user';
 const REMEMBERED_USER_KEY = 'ogadoctor_remembered_user';
@@ -86,5 +88,5 @@ export function clearStoredFormDraft(formId) {
 }
 
 export function isOnboardingDone(user) {
-  return Boolean(user?.onboarding?.onboardingCompleted);
+  return isOnboardingCompleteForUser(user);
 }

@@ -20,6 +20,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
+import LanguageSelect from './shared/LanguageSelect';
 
 const navItems = [
   { to: '/', label: 'Home' },
@@ -73,6 +75,7 @@ export function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAuthenticated, user, signOut } = useAuth();
+  const { tr } = useLanguage();
 
   const isHome = location.pathname === '/';
   const isLightMode = !isHome || isScrolling || open;
@@ -131,7 +134,7 @@ export function Navbar() {
         <Link to="/" className="flex items-center py-0" onClick={closeMobile}>
           <img
             src="/image/ogaDoctor.png"
-            alt="OgaDoctor Logo"
+            alt={tr('OgaDoctor')}
             className={`m-1 h-12 w-12 transition-all duration-300 sm:m-2 sm:h-16 sm:w-16 ${logoClass}`}
           />
         </Link>
@@ -141,13 +144,20 @@ export function Navbar() {
             <DesktopNavLink
               key={item.to}
               to={item.to}
-              label={item.label}
+              label={tr(item.label)}
               isLightMode={isLightMode}
             />
           ))}
         </ul>
 
         <div className="hidden items-center gap-3 lg:flex">
+          <LanguageSelect
+            variant="menu"
+            showLabel={false}
+            className="text-slate-600"
+            buttonClassName="min-w-[120px] border-slate-900 bg-white px-3 py-2 text-xs font-medium text-slate-900 hover:bg-slate-50"
+            menuClassName="border-slate-900"
+          />
           <IconButton
             variant="text"
             color={iconColor}
@@ -175,13 +185,13 @@ export function Navbar() {
                 to="/auth/signin"
                 className="rounded-xl border border-blue-gray-200 px-3 py-2 text-sm font-medium text-blue-gray-900 hover:bg-blue-gray-50"
               >
-                Sign In
+                {tr('Sign In')}
               </Link>
               <Link
                 to="/auth/signup"
                 className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
               >
-                Sign Up
+                {tr('Sign Up')}
               </Link>
             </>
           ) : (
@@ -190,7 +200,7 @@ export function Navbar() {
                 to="/app/dashboard"
                 className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
               >
-                Dashboard
+                {tr('Dashboard')}
               </Link>
 
               <Menu
@@ -203,7 +213,7 @@ export function Navbar() {
                     <Avatar
                       variant="circular"
                       size="sm"
-                      alt="User Profile"
+                      alt={tr('User Profile')}
                       src={avatarSrc}
                       className="cursor-pointer ring-2 ring-offset-2 ring-blue-500/30 hover:ring-blue-500/50 transition-all"
                     />
@@ -228,7 +238,7 @@ export function Navbar() {
                   >
                     <UserCircleIcon className="h-5 w-5" />
                     <Typography variant="small" className="font-medium">
-                      My Profile
+                      {tr('My Profile')}
                     </Typography>
                   </MenuItem>
 
@@ -259,7 +269,7 @@ export function Navbar() {
                       />
                     </svg>
                     <Typography variant="small" className="font-medium">
-                      Settings
+                      {tr('Settings')}
                     </Typography>
                   </MenuItem>
 
@@ -284,7 +294,7 @@ export function Navbar() {
                       />
                     </svg>
                     <Typography variant="small" className="font-medium">
-                      Sign Out
+                      {tr('Sign Out')}
                     </Typography>
                   </MenuItem>
                 </MenuList>
@@ -314,19 +324,26 @@ export function Navbar() {
               <MobileNavLink
                 key={item.to}
                 to={item.to}
-                label={item.label}
+                label={tr(item.label)}
                 onNavigate={closeMobile}
               />
             ))}
           </ul>
 
           <div className="mt-6 flex flex-col gap-2">
+            <LanguageSelect
+              variant="menu"
+              showLabel={false}
+              className="w-full"
+              buttonClassName="w-full justify-between border-slate-900 bg-white text-sm font-medium text-slate-900 hover:bg-slate-50"
+              menuClassName="left-0 right-0 min-w-0 border-slate-900"
+            />
             <button
               type="button"
               onClick={() => goToProtected('/app/notifications')}
               className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
-              Notifications
+              {tr('Notifications')}
             </button>
             <button
               type="button"
@@ -336,7 +353,7 @@ export function Navbar() {
               }}
               className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
-              Messages
+              {tr('Messages')}
             </button>
 
             {!isAuthenticated ? (
@@ -346,14 +363,14 @@ export function Navbar() {
                   onClick={closeMobile}
                   className="rounded-xl border border-slate-200 px-4 py-2 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 >
-                  Sign In
+                  {tr('Sign In')}
                 </Link>
                 <Link
                   to="/auth/signup"
                   onClick={closeMobile}
                   className="rounded-xl bg-blue-600 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-blue-700"
                 >
-                  Sign Up
+                  {tr('Sign Up')}
                 </Link>
               </>
             ) : (
@@ -363,14 +380,14 @@ export function Navbar() {
                   onClick={closeMobile}
                   className="rounded-xl bg-blue-600 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-blue-700"
                 >
-                  Dashboard
+                  {tr('Dashboard')}
                 </Link>
                 <button
                   type="button"
                   onClick={onSignOut}
                   className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
                 >
-                  Sign Out
+                  {tr('Sign Out')}
                 </button>
               </>
             )}

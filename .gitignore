@@ -13,3 +13,4 @@ yarn-debug.log*
 yarn-error.log*
 livekit.out.log
 livekit.err.log
+server/.local-db

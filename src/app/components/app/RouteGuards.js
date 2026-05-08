@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { getDefaultAppRoute } from '../../lib/account';
 import { isOnboardingDone } from '../../lib/session';
 
 function LoadingScreen() {
@@ -40,14 +41,14 @@ export function OnboardingRequiredRoute({ children }) {
 }
 
 export function PublicOnlyRoute({ children }) {
-  const { loading, isAuthenticated } = useAuth();
+  const { loading, isAuthenticated, user } = useAuth();
 
   if (loading) {
     return <LoadingScreen />;
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/app/dashboard" replace />;
+    return <Navigate to={getDefaultAppRoute(user)} replace />;
   }
 
   return children;

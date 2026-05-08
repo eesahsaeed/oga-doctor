@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/solid';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import AishaAssistantChat from './AishaAssistantChat';
 
 function ChatIcon() {
@@ -12,6 +13,7 @@ export default function FixedPlugin() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated } = useAuth();
+  const { tr } = useLanguage();
 
   const [open, setOpen] = useState(false);
 
@@ -40,7 +42,7 @@ export default function FixedPlugin() {
         <button
           type="button"
           onClick={() => setOpen(false)}
-          aria-label="Close Aisha chat backdrop"
+          aria-label={tr('Close Aisha chat backdrop')}
           className="fixed inset-0 z-40 h-dvh min-h-dvh w-screen bg-slate-900/20 backdrop-blur-[1px]"
         />
       )}
@@ -56,14 +58,16 @@ export default function FixedPlugin() {
             <div className="flex items-center gap-2.5">
               <img
                 src="/image/aisha.png"
-                alt="Aisha AI assistant"
+                alt={tr('Aisha AI assistant')}
                 className="h-9 w-9 rounded-full object-cover ring-2 ring-white/30"
               />
               <div>
                 <p className="text-sm font-semibold text-white">
-                  Aisha Health AI
+                  {tr('Aisha Health AI')}
                 </p>
-                <p className="text-xs text-blue-100">Secure assistant chat</p>
+                <p className="text-xs text-blue-100">
+                  {tr('Secure assistant chat')}
+                </p>
               </div>
             </div>
             <button
@@ -71,14 +75,14 @@ export default function FixedPlugin() {
               onClick={() => setOpen(false)}
               className="rounded-md px-2 py-1 text-xs font-semibold text-white hover:bg-blue-700"
             >
-              Close
+              {tr('Close')}
             </button>
           </div>
           <div className="bg-slate-50 p-3">
             <AishaAssistantChat
               compact
               showDisclaimer={false}
-              placeholder="Type your health question..."
+              placeholder={tr('Type your health question...')}
             />
             <div className="mt-2 flex items-center justify-end">
               <button
@@ -86,7 +90,7 @@ export default function FixedPlugin() {
                 onClick={openFullPage}
                 className="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50"
               >
-                Open full chat
+                {tr('Open full chat')}
               </button>
             </div>
           </div>
@@ -96,8 +100,8 @@ export default function FixedPlugin() {
           type="button"
           onClick={toggleModal}
           className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700"
-          title={open ? 'Hide Aisha chat' : 'Open Aisha chat'}
-          aria-label={open ? 'Hide Aisha chat' : 'Open Aisha chat'}
+          title={open ? tr('Hide Aisha chat') : tr('Open Aisha chat')}
+          aria-label={open ? tr('Hide Aisha chat') : tr('Open Aisha chat')}
         >
           <ChatIcon />
         </button>

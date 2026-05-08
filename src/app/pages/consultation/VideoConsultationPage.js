@@ -1,7 +1,8 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Room, RoomEvent, Track, VideoPresets } from 'livekit-client';
 
+import { useLanguage } from '../../context/LanguageContext';
 import { apiClient } from '../../lib/api';
 import { getStoredUser } from '../../lib/session';
 
@@ -11,7 +12,14 @@ const TOPIC_CHAT = 'ogadoctor.chat';
 const TOPIC_FILE = 'ogadoctor.file';
 const TOPIC_HAND = 'ogadoctor.hand';
 const TOPIC_SYSTEM = 'ogadoctor.system';
+const TOPIC_TRANSCRIPT = 'ogadoctor.transcript';
 const MAX_FILE_BYTES = 700 * 1024;
+const SPEECH_LOCALES = {
+  en: 'en-US',
+  ha: 'ha-NG',
+  ig: 'ig-NG',
+  yo: 'yo-NG',
+};
 
 const QUALITIES = {
   low: {
@@ -72,6 +80,130 @@ function decodePayload(payload) {
   }
 }
 
+function normalizeTranscriptEntry(input = {}) {
+  const text = String(input.text || input.message || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!text) {
+    return null;
+  }
+
+  const at = new Date(input.at || Date.now());
+  return {
+    id: String(input.id || makeId('transcript'))
+      .trim()
+      .slice(0, 120),
+    speakerIdentity: String(input.speakerIdentity || input.from || '')
+      .trim()
+      .slice(0, 120),
+    speakerName:
+      String(input.speakerName || input.fromLabel || 'Participant')
+        .trim()
+        .slice(0, 120) || 'Participant',
+    speakerUserId: String(input.speakerUserId || '')
+      .trim()
+      .slice(0, 120),
+    source:
+      String(input.source || 'manual')
+        .trim()
+        .toLowerCase()
+        .slice(0, 24) || 'manual',
+    text,
+    at: Number.isNaN(at.getTime())
+      ? new Date().toISOString()
+      : at.toISOString(),
+  };
+}
+
+function mergeTranscriptEntries(existingEntries = [], incomingEntries = []) {
+  const entryMap = new Map();
+
+  [...existingEntries, ...incomingEntries].forEach((entry) => {
+    const normalized = normalizeTranscriptEntry(entry);
+    if (!normalized) {
+      return;
+    }
+
+    const key =
+      normalized.id || `${normalized.speakerIdentity}-${normalized.at}`;
+    const current = entryMap.get(key) || {};
+    entryMap.set(key, { ...current, ...normalized });
+  });
+
+  return Array.from(entryMap.values()).sort(
+    (left, right) => new Date(left.at).getTime() - new Date(right.at).getTime(),
+  );
+}
+
+function formatTranscriptTime(value) {
+  if (!value) return '';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return date.toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function formatTranscriptSavedAt(value) {
+  if (!value) return '';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return date.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function buildTranscriptParticipants(room, currentUser, fallbackName = '') {
+  if (!room) {
+    return currentUser?.id
+      ? [
+          {
+            identity: '',
+            userId: currentUser.id,
+            name: fallbackName || currentUser.name || 'Participant',
+            accountType: currentUser.accountType || 'patient',
+            isLocal: true,
+          },
+        ]
+      : [];
+  }
+
+  const localIdentity = room.localParticipant?.identity || '';
+  return [
+    {
+      identity: localIdentity,
+      userId: currentUser?.id || '',
+      name:
+        labelForParticipant(room.localParticipant, localIdentity) ||
+        fallbackName ||
+        currentUser?.name ||
+        'You',
+      accountType: currentUser?.accountType || 'patient',
+      isLocal: true,
+    },
+    ...Array.from(room.remoteParticipants.values()).map((participant) => ({
+      identity: participant.identity || '',
+      userId: '',
+      name: labelForParticipant(participant, localIdentity),
+      accountType: '',
+      isLocal: false,
+    })),
+  ];
+}
+
 function formatBytes(size = 0) {
   if (!size) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB'];
@@ -81,6 +213,24 @@ function formatBytes(size = 0) {
   );
   const value = size / 1024 ** idx;
   return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} ${units[idx]}`;
+}
+
+function getSpeechLocale(language = 'en') {
+  return SPEECH_LOCALES[language] || SPEECH_LOCALES.en;
+}
+
+function getWebSpeechRecognition() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+}
+
+function normalizeSpeechChunk(value = '') {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function getParticipantCameraTrack(participant) {
@@ -161,6 +311,17 @@ function IconChat() {
       <path d="M4 6.75A2.75 2.75 0 0 1 6.75 4h10.5A2.75 2.75 0 0 1 20 6.75v6.5A2.75 2.75 0 0 1 17.25 16H9l-4.5 3V6.75Z" />
       <path d="M8 9.25h8" />
       <path d="M8 12h5.5" />
+    </IconBase>
+  );
+}
+
+function IconTranscript() {
+  return (
+    <IconBase>
+      <path d="M6.75 4.5h10.5A1.75 1.75 0 0 1 19 6.25v11.5a1.75 1.75 0 0 1-1.75 1.75H6.75A1.75 1.75 0 0 1 5 17.75V6.25A1.75 1.75 0 0 1 6.75 4.5Z" />
+      <path d="M8.5 8.25h7" />
+      <path d="M8.5 11.5h7" />
+      <path d="M8.5 14.75h4.5" />
     </IconBase>
   );
 }
@@ -336,11 +497,13 @@ function ScreenPortal({ enabled = false, children }) {
 }
 
 export default function VideoConsultationPage() {
+  const { tr, language, languageMeta } = useLanguage();
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const audioSinkRef = useRef(null);
   const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
+  const transcriptEndRef = useRef(null);
   const moreMenuRef = useRef(null);
   const moreToggleRef = useRef(null);
 
@@ -352,7 +515,16 @@ export default function VideoConsultationPage() {
   const leavingRef = useRef(false);
   const seenChatRef = useRef(new Set());
   const seenFileRef = useRef(new Set());
+  const seenTranscriptRef = useRef(new Set());
   const pinnedParticipantIdRef = useRef('');
+  const transcriptEntriesRef = useRef([]);
+  const speechRecognitionRef = useRef(null);
+  const speechRestartTimerRef = useRef(null);
+  const lastSpeechChunkRef = useRef({ text: '', at: 0 });
+
+  const currentUser = useMemo(() => getStoredUser(), []);
+  const speechSupported = useMemo(() => Boolean(getWebSpeechRecognition()), []);
+  const speechLocale = useMemo(() => getSpeechLocale(language), [language]);
 
   const [roomId, setRoomId] = useState(() =>
     getStoredValue(ROOM_KEY, makeRoomId()),
@@ -364,7 +536,7 @@ export default function VideoConsultationPage() {
   const [isJoining, setIsJoining] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [status, setStatus] = useState(
-    'Ready. Join a consultation room to begin.',
+    tr('Ready. Join a consultation room to begin.'),
   );
   const [error, setError] = useState('');
 
@@ -380,6 +552,15 @@ export default function VideoConsultationPage() {
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState([]);
   const [sharedFiles, setSharedFiles] = useState([]);
+  const [transcriptInput, setTranscriptInput] = useState('');
+  const [transcriptEntries, setTranscriptEntries] = useState([]);
+  const [transcriptRecordId, setTranscriptRecordId] = useState('');
+  const [transcriptUpdatedAt, setTranscriptUpdatedAt] = useState('');
+  const [transcriptSaving, setTranscriptSaving] = useState(false);
+  const [autoTranscriptEnabled, setAutoTranscriptEnabled] = useState(false);
+  const [autoTranscriptListening, setAutoTranscriptListening] = useState(false);
+  const [autoTranscriptPreview, setAutoTranscriptPreview] = useState('');
+  const [autoTranscriptError, setAutoTranscriptError] = useState('');
 
   const [isHandRaised, setIsHandRaised] = useState(false);
   const [raisedHands, setRaisedHands] = useState({});
@@ -444,6 +625,11 @@ export default function VideoConsultationPage() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ block: 'end' });
   }, [chatMessages]);
+
+  useEffect(() => {
+    transcriptEntriesRef.current = transcriptEntries;
+    transcriptEndRef.current?.scrollIntoView({ block: 'end' });
+  }, [transcriptEntries]);
 
   const detachAudioTrack = (track) => {
     const sid = track?.sid;
@@ -618,15 +804,163 @@ export default function VideoConsultationPage() {
     detachAllAudio();
   };
 
+  const shareTranscriptEntry = useCallback(
+    async ({ text, source = 'manual' }) => {
+      const room = roomRef.current;
+      const normalizedText = normalizeSpeechChunk(text);
+
+      if (!room || !normalizedText) {
+        return false;
+      }
+
+      const localId = room.localParticipant.identity;
+      const entry = normalizeTranscriptEntry({
+        id: makeId('transcript'),
+        speakerIdentity: localId,
+        speakerName: labelForParticipant(room.localParticipant, localId),
+        speakerUserId: currentUser?.id || '',
+        source,
+        text: normalizedText,
+        at: new Date().toISOString(),
+      });
+
+      if (!entry) {
+        return false;
+      }
+
+      seenTranscriptRef.current.add(entry.id);
+      setTranscriptEntries((prev) => mergeTranscriptEntries(prev, [entry]));
+      setActivePanel((prev) => prev || 'transcript');
+
+      try {
+        await room.localParticipant.publishData(encodePayload(entry), {
+          reliable: true,
+          topic: TOPIC_TRANSCRIPT,
+        });
+        return true;
+      } catch (transcriptError) {
+        const message =
+          transcriptError.message || tr('Unable to share transcript entry.');
+        setError(message);
+        if (source === 'speech') {
+          setAutoTranscriptError(message);
+        }
+        return false;
+      }
+    },
+    [currentUser?.id, tr],
+  );
+
+  const loadTranscript = async (nextRoomName) => {
+    const normalizedRoom = String(nextRoomName || '').trim();
+
+    if (!normalizedRoom) {
+      setTranscriptEntries([]);
+      setTranscriptRecordId('');
+      setTranscriptUpdatedAt('');
+      seenTranscriptRef.current.clear();
+      return;
+    }
+
+    try {
+      const payload = await apiClient.consultationTranscript(normalizedRoom);
+      const transcript = payload?.transcript || null;
+      const nextEntries = mergeTranscriptEntries([], transcript?.entries || []);
+
+      seenTranscriptRef.current = new Set(nextEntries.map((entry) => entry.id));
+      setTranscriptEntries(nextEntries);
+      setTranscriptRecordId(transcript?.id || '');
+      setTranscriptUpdatedAt(transcript?.updatedAt || '');
+    } catch (loadError) {
+      setError(loadError.message || tr('Unable to load saved transcript.'));
+    }
+  };
+
+  const persistTranscript = async ({
+    status = 'active',
+    suppressStatus = false,
+    roomOverride = null,
+  } = {}) => {
+    const normalizedRoom = String(roomNameRef.current || roomId || '').trim();
+    const room = roomOverride || roomRef.current;
+    const entries = transcriptEntriesRef.current;
+    const participantsPayload = buildTranscriptParticipants(
+      room,
+      currentUser,
+      participantName.trim(),
+    );
+
+    if (
+      !normalizedRoom ||
+      (entries.length === 0 && participantsPayload.length === 0)
+    ) {
+      return null;
+    }
+
+    setTranscriptSaving(true);
+    try {
+      const payload = await apiClient.saveConsultationTranscript({
+        roomName: normalizedRoom,
+        consultationType: 'video',
+        status,
+        identity: room?.localParticipant?.identity || '',
+        participantName: participantName.trim(),
+        participants: participantsPayload,
+        entries,
+      });
+
+      const savedTranscript = payload?.transcript || null;
+      if (savedTranscript) {
+        const nextEntries = mergeTranscriptEntries(
+          [],
+          savedTranscript.entries || [],
+        );
+        seenTranscriptRef.current = new Set(
+          nextEntries.map((entry) => entry.id),
+        );
+        setTranscriptEntries(nextEntries);
+        setTranscriptRecordId(savedTranscript.id || '');
+        setTranscriptUpdatedAt(savedTranscript.updatedAt || '');
+      }
+
+      if (!suppressStatus) {
+        setStatus(
+          status === 'completed'
+            ? tr('Transcript saved and consultation closed.')
+            : tr('Transcript saved.'),
+        );
+      }
+
+      return savedTranscript;
+    } catch (saveError) {
+      if (!suppressStatus) {
+        setError(saveError.message || tr('Unable to save transcript.'));
+      }
+      return null;
+    } finally {
+      setTranscriptSaving(false);
+    }
+  };
+
   const leaveRoom = async (preserveStatus = false) => {
     const room = roomRef.current;
-    roomRef.current = null;
     if (!room) {
-      if (!preserveStatus) setStatus('Call ended. You can rejoin any room.');
+      if (!preserveStatus)
+        setStatus(tr('Call ended. You can rejoin any room.'));
       return;
     }
 
     leavingRef.current = true;
+    try {
+      await persistTranscript({
+        status: preserveStatus ? 'active' : 'completed',
+        suppressStatus: true,
+        roomOverride: room,
+      });
+    } catch (_error) {
+      // no-op
+    }
+    roomRef.current = null;
     try {
       await room.disconnect();
     } catch (_error) {
@@ -649,14 +983,216 @@ export default function VideoConsultationPage() {
     setIsHandRaised(false);
     setActivePanel('');
     setShowMore(false);
-    if (!preserveStatus) setStatus('Call ended. You can rejoin any room.');
+    setAutoTranscriptEnabled(false);
+    setAutoTranscriptListening(false);
+    setAutoTranscriptPreview('');
+    setAutoTranscriptError('');
+    lastSpeechChunkRef.current = { text: '', at: 0 };
+    if (!preserveStatus) setStatus(tr('Call ended. You can rejoin any room.'));
     leavingRef.current = false;
+  };
+
+  useEffect(() => {
+    if (speechRestartTimerRef.current) {
+      window.clearTimeout(speechRestartTimerRef.current);
+      speechRestartTimerRef.current = null;
+    }
+
+    if (!autoTranscriptEnabled) {
+      setAutoTranscriptListening(false);
+      setAutoTranscriptPreview('');
+      return undefined;
+    }
+
+    if (!isConnected || !roomRef.current) {
+      setAutoTranscriptEnabled(false);
+      return undefined;
+    }
+
+    const SpeechRecognition = getWebSpeechRecognition();
+    if (!SpeechRecognition) {
+      const message = tr('Live transcript unavailable on this browser.');
+      setAutoTranscriptError(message);
+      setError(message);
+      setAutoTranscriptEnabled(false);
+      return undefined;
+    }
+
+    const recognition = new SpeechRecognition();
+    speechRecognitionRef.current = recognition;
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    recognition.lang = speechLocale;
+
+    recognition.onstart = () => {
+      setAutoTranscriptListening(true);
+      setAutoTranscriptError('');
+    };
+
+    recognition.onresult = (event) => {
+      const finalChunks = [];
+      let preview = '';
+
+      for (let idx = event.resultIndex; idx < event.results.length; idx += 1) {
+        const result = event.results[idx];
+        const transcript = normalizeSpeechChunk(result?.[0]?.transcript || '');
+        if (!transcript) {
+          continue;
+        }
+
+        if (result.isFinal) {
+          finalChunks.push(transcript);
+        } else {
+          preview = transcript;
+        }
+      }
+
+      setAutoTranscriptPreview(preview);
+
+      finalChunks.forEach((chunk) => {
+        const isDuplicate =
+          lastSpeechChunkRef.current.text === chunk &&
+          Date.now() - lastSpeechChunkRef.current.at < 4000;
+
+        if (isDuplicate) {
+          return;
+        }
+
+        lastSpeechChunkRef.current = {
+          text: chunk,
+          at: Date.now(),
+        };
+        void shareTranscriptEntry({ text: chunk, source: 'speech' });
+      });
+    };
+
+    recognition.onerror = (event) => {
+      const blocked =
+        event?.error === 'not-allowed' ||
+        event?.error === 'service-not-allowed';
+      const unsupportedLanguage = event?.error === 'language-not-supported';
+      const message = blocked
+        ? tr('Speech recognition permission is required for live transcript.')
+        : unsupportedLanguage
+          ? tr(
+              'Speech recognition is not available in {language} on this device.',
+              {
+                language: languageMeta.label,
+              },
+            )
+          : event?.message || tr('Unable to start live transcript.');
+
+      setAutoTranscriptError(message);
+      setError(message);
+
+      if (blocked || unsupportedLanguage) {
+        setAutoTranscriptEnabled(false);
+      }
+    };
+
+    recognition.onend = () => {
+      setAutoTranscriptListening(false);
+      setAutoTranscriptPreview('');
+
+      if (!autoTranscriptEnabled || !isConnected || !roomRef.current) {
+        return;
+      }
+
+      speechRestartTimerRef.current = window.setTimeout(() => {
+        try {
+          recognition.start();
+        } catch (restartError) {
+          const message =
+            restartError?.message || tr('Unable to start live transcript.');
+          setAutoTranscriptError(message);
+          setError(message);
+          setAutoTranscriptEnabled(false);
+        }
+      }, 300);
+    };
+
+    try {
+      recognition.start();
+    } catch (startError) {
+      const message =
+        startError?.message || tr('Unable to start live transcript.');
+      setAutoTranscriptError(message);
+      setError(message);
+      setAutoTranscriptEnabled(false);
+    }
+
+    return () => {
+      if (speechRestartTimerRef.current) {
+        window.clearTimeout(speechRestartTimerRef.current);
+        speechRestartTimerRef.current = null;
+      }
+
+      recognition.onstart = null;
+      recognition.onresult = null;
+      recognition.onerror = null;
+      recognition.onend = null;
+
+      if (speechRecognitionRef.current === recognition) {
+        speechRecognitionRef.current = null;
+      }
+
+      try {
+        recognition.stop();
+      } catch (_error) {
+        try {
+          recognition.abort();
+        } catch (_abortError) {
+          // no-op
+        }
+      }
+    };
+  }, [
+    autoTranscriptEnabled,
+    isConnected,
+    languageMeta.label,
+    shareTranscriptEntry,
+    speechLocale,
+    tr,
+  ]);
+
+  const toggleAutoTranscript = () => {
+    if (autoTranscriptEnabled) {
+      setAutoTranscriptEnabled(false);
+      setAutoTranscriptListening(false);
+      setAutoTranscriptPreview('');
+      setAutoTranscriptError('');
+      setStatus(tr('Live transcript stopped.'));
+      return;
+    }
+
+    if (!roomRef.current || !isConnected) {
+      setError(tr('Join a room before starting live transcript.'));
+      return;
+    }
+
+    if (!speechSupported) {
+      const message = tr('Live transcript unavailable on this browser.');
+      setAutoTranscriptError(message);
+      setError(message);
+      return;
+    }
+
+    setAutoTranscriptError('');
+    setAutoTranscriptPreview('');
+    setActivePanel((prev) => prev || 'transcript');
+    setAutoTranscriptEnabled(true);
+    setStatus(tr('Live transcript started.'));
   };
 
   const bindRoom = (room) => {
     room.on(RoomEvent.Connected, async () => {
       setIsConnected(true);
-      setStatus(`Connected to room ${roomNameRef.current || room.name}.`);
+      setStatus(
+        tr('Connected to room {room}.', {
+          room: roomNameRef.current || room.name,
+        }),
+      );
       setError('');
       syncParticipants(room);
       syncLocalVideo(room);
@@ -677,13 +1213,16 @@ export default function VideoConsultationPage() {
       setRemoteVideoTiles([]);
       pinnedParticipantIdRef.current = '';
       setPinnedParticipantId('');
+      setAutoTranscriptEnabled(false);
+      setAutoTranscriptListening(false);
+      setAutoTranscriptPreview('');
       if (!leavingRef.current)
-        setStatus('Disconnected from room. Rejoin to continue.');
+        setStatus(tr('Disconnected from room. Rejoin to continue.'));
     });
 
     room.on(RoomEvent.ConnectionStateChanged, (state) => {
       if (state === 'reconnecting' || state === 'signalReconnecting')
-        setStatus('Reconnecting call...');
+        setStatus(tr('Reconnecting call...'));
     });
 
     room.on(RoomEvent.ParticipantConnected, (participant) => {
@@ -691,7 +1230,12 @@ export default function VideoConsultationPage() {
       syncRemoteTiles(room);
       syncRemoteVideo(room);
       setStatus(
-        `${labelForParticipant(participant, room.localParticipant.identity)} joined the room.`,
+        tr('{name} joined the room.', {
+          name: labelForParticipant(
+            participant,
+            room.localParticipant.identity,
+          ),
+        }),
       );
     });
 
@@ -705,7 +1249,12 @@ export default function VideoConsultationPage() {
         return next;
       });
       setStatus(
-        `${labelForParticipant(participant, room.localParticipant.identity)} left the room.`,
+        tr('{name} left the room.', {
+          name: labelForParticipant(
+            participant,
+            room.localParticipant.identity,
+          ),
+        }),
       );
     });
 
@@ -716,7 +1265,12 @@ export default function VideoConsultationPage() {
         syncRemoteTiles(room);
       }
       setStatus(
-        `${labelForParticipant(participant, room.localParticipant.identity)} is live.`,
+        tr('{name} is live.', {
+          name: labelForParticipant(
+            participant,
+            room.localParticipant.identity,
+          ),
+        }),
       );
     });
 
@@ -727,7 +1281,12 @@ export default function VideoConsultationPage() {
         syncRemoteTiles(room);
       }
       setStatus(
-        `${labelForParticipant(participant, room.localParticipant.identity)} stream updated.`,
+        tr('{name} stream updated.', {
+          name: labelForParticipant(
+            participant,
+            room.localParticipant.identity,
+          ),
+        }),
       );
     });
 
@@ -735,7 +1294,9 @@ export default function VideoConsultationPage() {
     room.on(RoomEvent.LocalTrackUnpublished, () => syncLocalVideo(room));
 
     room.on(RoomEvent.MediaDevicesError, (mediaError) => {
-      setError(mediaError?.message || 'Unable to access camera or microphone.');
+      setError(
+        mediaError?.message || tr('Unable to access camera or microphone.'),
+      );
     });
 
     room.on(RoomEvent.DataReceived, (payload, participant, _kind, topic) => {
@@ -785,7 +1346,38 @@ export default function VideoConsultationPage() {
           },
         ]);
         setActivePanel((prev) => prev || 'files');
-        setStatus(`File received: ${data.fileName || 'Shared file'}`);
+        setStatus(
+          tr('File received: {name}', {
+            name: data.fileName || tr('Shared file'),
+          }),
+        );
+        return;
+      }
+
+      if (topic === TOPIC_TRANSCRIPT) {
+        const entry = normalizeTranscriptEntry({
+          ...data,
+          id: data.id || makeId('transcript'),
+          speakerIdentity: senderId,
+          speakerName:
+            data.speakerName || labelForParticipant(participant, localId),
+        });
+        if (!entry) {
+          return;
+        }
+
+        if (seenTranscriptRef.current.has(entry.id)) {
+          return;
+        }
+
+        seenTranscriptRef.current.add(entry.id);
+        setTranscriptEntries((prev) => mergeTranscriptEntries(prev, [entry]));
+        setActivePanel((prev) => prev || 'transcript');
+        setStatus(
+          tr('Transcript updated by {name}.', {
+            name: entry.speakerName,
+          }),
+        );
         return;
       }
 
@@ -797,8 +1389,12 @@ export default function VideoConsultationPage() {
         } else {
           setStatus(
             raised
-              ? `${labelForParticipant(participant, localId)} raised hand.`
-              : `${labelForParticipant(participant, localId)} lowered hand.`,
+              ? tr('{name} raised hand.', {
+                  name: labelForParticipant(participant, localId),
+                })
+              : tr('{name} lowered hand.', {
+                  name: labelForParticipant(participant, localId),
+                }),
           );
         }
         return;
@@ -808,7 +1404,12 @@ export default function VideoConsultationPage() {
         const from =
           data.fromLabel || labelForParticipant(participant, localId);
         const remindedRoom = data.roomId || roomNameRef.current;
-        setStatus(`${from} shared room reminder: ${remindedRoom}`);
+        setStatus(
+          tr('{name} shared room reminder: {room}', {
+            name: from,
+            room: remindedRoom,
+          }),
+        );
       }
     });
   };
@@ -816,23 +1417,30 @@ export default function VideoConsultationPage() {
   const joinRoom = async () => {
     const nextRoom = roomId.trim();
     const nextName = participantName.trim();
-    if (!nextRoom) return setError('Room ID is required.');
-    if (!nextName) return setError('Participant name is required.');
+    if (!nextRoom) return setError(tr('Room ID is required.'));
+    if (!nextName) return setError(tr('Participant name is required.'));
 
     setIsJoining(true);
     setJoinModalDismissed(false);
     setError('');
 
     try {
+      await loadTranscript(nextRoom);
       await leaveRoom(true);
-      setStatus('Requesting secure room access...');
+      setStatus(tr('Requesting secure room access...'));
 
       const tokenPayload = await apiClient.createConsultationToken({
         roomName: nextRoom,
         participantName: nextName,
       });
       if (!tokenPayload?.token || !tokenPayload?.serverUrl) {
-        throw new Error('LiveKit token service returned an invalid response.');
+        throw new Error(
+          tr('LiveKit token service returned an invalid response.'),
+        );
+      }
+
+      if (tokenPayload.roomName && tokenPayload.roomName !== nextRoom) {
+        await loadTranscript(tokenPayload.roomName);
       }
 
       roomNameRef.current = tokenPayload.roomName || nextRoom;
@@ -849,7 +1457,11 @@ export default function VideoConsultationPage() {
 
       bindRoom(room);
       roomRef.current = room;
-      setStatus(`Connecting to room ${roomNameRef.current}...`);
+      setStatus(
+        tr('Connecting to room {room}...', {
+          room: roomNameRef.current,
+        }),
+      );
 
       await room.connect(tokenPayload.serverUrl, tokenPayload.token, {
         autoSubscribe: true,
@@ -865,9 +1477,9 @@ export default function VideoConsultationPage() {
       syncRemoteVideo(room);
       syncRemoteTiles(room);
     } catch (joinError) {
-      const joinMessage = joinError?.message || 'Unable to join room.';
+      const joinMessage = joinError?.message || tr('Unable to join room.');
       setError(joinMessage);
-      setStatus(`Join failed: ${joinMessage}`);
+      setStatus(tr('Join failed: {message}', { message: joinMessage }));
       await leaveRoom(true);
     } finally {
       setIsJoining(false);
@@ -882,26 +1494,39 @@ export default function VideoConsultationPage() {
 
   const copyRoom = async () => {
     const value = roomId.trim();
-    if (!value) return setError('Room ID is required before copying.');
+    if (!value) return setError(tr('Room ID is required before copying.'));
     try {
       await navigator.clipboard.writeText(value);
-      setStatus(`Room ID copied: ${value}`);
+      setStatus(tr('Room ID copied: {room}', { room: value }));
       setError('');
     } catch (_error) {
-      setError('Unable to copy room ID. Please copy manually.');
+      setError(tr('Unable to copy room ID. Please copy manually.'));
     }
   };
 
   const createRoom = () => {
     const next = makeRoomId();
     setRoomId(next);
-    setStatus(`Created room ${next}. Share it and tap Join Room.`);
+    setTranscriptInput('');
+    setTranscriptEntries([]);
+    setTranscriptRecordId('');
+    setTranscriptUpdatedAt('');
+    seenTranscriptRef.current.clear();
+    setStatus(
+      tr('Created room {room}. Share it and tap Join Room.', {
+        room: next,
+      }),
+    );
     setError('');
   };
 
   const resendInvite = async () => {
     await copyRoom();
-    setStatus(`Invitation details ready. Share room ID ${roomId.trim()}.`);
+    setStatus(
+      tr('Invitation details ready. Share room ID {room}.', {
+        room: roomId.trim(),
+      }),
+    );
 
     const room = roomRef.current;
     if (!room || !isConnected) return;
@@ -931,10 +1556,10 @@ export default function VideoConsultationPage() {
     setAudioEnabled(next);
     try {
       await room.localParticipant.setMicrophoneEnabled(next);
-      setStatus(next ? 'Microphone enabled.' : 'Microphone muted.');
+      setStatus(next ? tr('Microphone enabled.') : tr('Microphone muted.'));
     } catch (toggleError) {
       setAudioEnabled(!next);
-      setError(toggleError.message || 'Unable to update microphone state.');
+      setError(toggleError.message || tr('Unable to update microphone state.'));
     }
   };
 
@@ -950,10 +1575,10 @@ export default function VideoConsultationPage() {
         frameRate: quality.frameRate,
       });
       syncLocalVideo(room);
-      setStatus(next ? 'Camera enabled.' : 'Camera disabled.');
+      setStatus(next ? tr('Camera enabled.') : tr('Camera disabled.'));
     } catch (toggleError) {
       setVideoEnabled(!next);
-      setError(toggleError.message || 'Unable to update camera state.');
+      setError(toggleError.message || tr('Unable to update camera state.'));
     }
   };
 
@@ -963,7 +1588,11 @@ export default function VideoConsultationPage() {
     setVideoQuality(nextQuality);
 
     if (!room || !videoEnabled) {
-      setStatus(`Video quality set to ${quality.label}.`);
+      setStatus(
+        tr('Video quality set to {quality}.', {
+          quality: tr(quality.label),
+        }),
+      );
       return;
     }
 
@@ -984,9 +1613,13 @@ export default function VideoConsultationPage() {
         });
       }
       syncLocalVideo(room);
-      setStatus(`Video quality switched to ${quality.label}.`);
+      setStatus(
+        tr('Video quality switched to {quality}.', {
+          quality: tr(quality.label),
+        }),
+      );
     } catch (qualityError) {
-      setError(qualityError.message || 'Unable to change video quality.');
+      setError(qualityError.message || tr('Unable to change video quality.'));
     }
   };
 
@@ -1005,14 +1638,16 @@ export default function VideoConsultationPage() {
         reliable: true,
         topic: TOPIC_HAND,
       });
-      setStatus(next ? 'You raised your hand.' : 'You lowered your hand.');
+      setStatus(
+        next ? tr('You raised your hand.') : tr('You lowered your hand.'),
+      );
     } catch (handError) {
       setIsHandRaised(!next);
       setRaisedHands((prev) => ({
         ...prev,
         [room.localParticipant.identity]: !next,
       }));
-      setError(handError.message || 'Unable to update raised hand status.');
+      setError(handError.message || tr('Unable to update raised hand status.'));
     }
   };
 
@@ -1044,7 +1679,26 @@ export default function VideoConsultationPage() {
         },
       );
     } catch (chatError) {
-      setError(chatError.message || 'Unable to send chat message.');
+      setError(chatError.message || tr('Unable to send chat message.'));
+    }
+  };
+
+  const addTranscriptEntry = async (event) => {
+    event.preventDefault();
+    const text = transcriptInput.trim();
+
+    if (!roomRef.current) {
+      return setError(tr('Join a room before adding transcript entries.'));
+    }
+
+    if (!text) {
+      return;
+    }
+
+    setTranscriptInput('');
+    const shared = await shareTranscriptEntry({ text, source: 'manual' });
+    if (shared) {
+      setStatus(tr('Transcript updated.'));
     }
   };
 
@@ -1061,7 +1715,9 @@ export default function VideoConsultationPage() {
 
     if (file.size > MAX_FILE_BYTES) {
       return setError(
-        `File is too large. Max size is ${formatBytes(MAX_FILE_BYTES)}.`,
+        tr('File is too large. Max size is {size}.', {
+          size: formatBytes(MAX_FILE_BYTES),
+        }),
       );
     }
 
@@ -1070,7 +1726,7 @@ export default function VideoConsultationPage() {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
         reader.onerror = () =>
-          reject(new Error('Unable to read selected file.'));
+          reject(new Error(tr('Unable to read selected file.')));
         reader.readAsDataURL(file);
       });
 
@@ -1108,9 +1764,9 @@ export default function VideoConsultationPage() {
         }),
         { reliable: true, topic: TOPIC_FILE },
       );
-      setStatus(`Shared file: ${file.name}`);
+      setStatus(tr('Shared file: {name}', { name: file.name }));
     } catch (fileError) {
-      setError(fileError.message || 'Unable to share file.');
+      setError(fileError.message || tr('Unable to share file.'));
     }
   };
 
@@ -1126,7 +1782,7 @@ export default function VideoConsultationPage() {
     pinnedParticipantIdRef.current = participantId;
     setPinnedParticipantId(participantId);
     syncRemoteVideo(roomRef.current, participantId);
-    setStatus('Focused selected participant.');
+    setStatus(tr('Focused selected participant.'));
   };
 
   useEffect(() => {
@@ -1153,15 +1809,17 @@ export default function VideoConsultationPage() {
               type="button"
               onClick={() => setJoinModalDismissed(true)}
               className="absolute right-3 top-3 rounded-full border border-slate-200 bg-white p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-              aria-label="Close join consultation modal"
-              title="Close"
+              aria-label={tr('Close join consultation modal')}
+              title={tr('Close')}
             >
               <IconClose />
             </button>
             <p className="text-sm font-semibold text-blue-800">
-              Join video consultation
+              {tr('Join video consultation')}
             </p>
-            <p className="mt-1 text-xs text-slate-600">Room: {roomId}</p>
+            <p className="mt-1 text-xs text-slate-600">
+              {tr('Room')}: {roomId}
+            </p>
             <div className="mt-4 flex items-center justify-center gap-3">
               <button
                 type="button"
@@ -1169,7 +1827,7 @@ export default function VideoConsultationPage() {
                 disabled={isJoining}
                 className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isJoining ? 'Joining...' : 'Join Now'}
+                {isJoining ? tr('Joining...') : tr('Join Now')}
               </button>
             </div>
           </div>
@@ -1183,10 +1841,10 @@ export default function VideoConsultationPage() {
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h1 className="text-2xl font-bold text-slate-900">
-          Video Consultation
+          {tr('Video Consultation')}
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Secure one-on-one and group video consultations.
+          {tr('Secure one-on-one and group video consultations.')}
         </p>
       </section>
 
@@ -1196,27 +1854,27 @@ export default function VideoConsultationPage() {
             value={roomId}
             onChange={(e) => setRoomId(e.target.value)}
             className="rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
-            placeholder="Room ID"
+            placeholder={tr('Room ID')}
           />
           <input
             value={participantName}
             onChange={(e) => setParticipantName(e.target.value)}
             className="rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
-            placeholder="Your name"
+            placeholder={tr('Your name')}
           />
           <button
             type="button"
             onClick={createRoom}
             className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
           >
-            New Room
+            {tr('New Room')}
           </button>
           <button
             type="button"
             onClick={() => void copyRoom()}
             className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
           >
-            Copy ID
+            {tr('Copy ID')}
           </button>
           {!isConnected ? (
             <button
@@ -1225,7 +1883,7 @@ export default function VideoConsultationPage() {
               disabled={isJoining}
               className="rounded-xl bg-blue-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isJoining ? 'Joining...' : 'Join Consultation'}
+              {isJoining ? tr('Joining...') : tr('Join Consultation')}
             </button>
           ) : (
             <button
@@ -1233,29 +1891,29 @@ export default function VideoConsultationPage() {
               onClick={() => void leaveRoom()}
               className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-100"
             >
-              Leave Room
+              {tr('Leave Room')}
             </button>
           )}
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
           <span className="rounded-lg bg-slate-100 px-2 py-1 text-slate-600">
-            Video: Secure
+            {tr('Video')}: {tr('Secure')}
           </span>
           <span className="rounded-lg bg-slate-100 px-2 py-1 text-slate-600">
-            Room: {currentRoom}
+            {tr('Room')}: {currentRoom}
           </span>
           <span className="rounded-lg bg-slate-100 px-2 py-1 text-slate-600">
-            People: {participants.length}
+            {tr('People')}: {participants.length}
           </span>
           <span className="rounded-lg bg-slate-100 px-2 py-1 text-slate-600">
-            Status: {isConnected ? 'Connected' : 'Idle'}
+            {tr('Status')}: {isConnected ? tr('Connected') : tr('Idle')}
           </span>
         </div>
 
         <div className="mt-3">
           <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Video Quality
+            {tr('Video Quality')}
           </label>
           <select
             value={videoQuality}
@@ -1264,7 +1922,7 @@ export default function VideoConsultationPage() {
           >
             {Object.entries(QUALITIES).map(([key, value]) => (
               <option key={key} value={key}>
-                {value.label}
+                {tr(value.label)}
               </option>
             ))}
           </select>
@@ -1303,7 +1961,7 @@ export default function VideoConsultationPage() {
             />
             {!hasRemoteStream && (
               <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 text-sm text-slate-300">
-                Waiting for participant video
+                {tr('Waiting for participant video')}
               </div>
             )}
 
@@ -1339,25 +1997,28 @@ export default function VideoConsultationPage() {
               <div className="absolute inset-x-0 bottom-0 z-20 px-4 pb-3">
                 <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2 rounded-2xl border border-white/35 bg-white/15 p-2.5 text-[11px] text-white shadow-2xl backdrop-blur-xl">
                   <span className="rounded-full bg-white/20 px-2.5 py-1">
-                    Room {currentRoom}
+                    {tr('Room')} {currentRoom}
                   </span>
                   <span className="rounded-full bg-white/20 px-2.5 py-1">
-                    {isConnected ? 'Online' : 'Offline'}
+                    {isConnected ? tr('Online') : tr('Offline')}
                   </span>
                   <span className="rounded-full bg-white/20 px-2.5 py-1">
-                    {participants.length} people
+                    {participants.length} {tr('people')}
                   </span>
                   <span className="rounded-full bg-white/20 px-2.5 py-1">
-                    {audioEnabled ? 'Mic on' : 'Mic off'}
+                    {audioEnabled ? tr('Mic on') : tr('Mic off')}
                   </span>
                   <span className="rounded-full bg-white/20 px-2.5 py-1">
-                    {videoEnabled ? 'Camera on' : 'Camera off'}
+                    {videoEnabled ? tr('Camera on') : tr('Camera off')}
                   </span>
                   <span className="rounded-full bg-white/20 px-2.5 py-1">
-                    {raisedCount} raised hand
+                    {raisedCount} {tr('raised hand')}
                   </span>
                   <span className="rounded-full bg-white/20 px-2.5 py-1">
-                    {(QUALITIES[videoQuality] || QUALITIES.balanced).label}
+                    {transcriptEntries.length} {tr('transcript notes')}
+                  </span>
+                  <span className="rounded-full bg-white/20 px-2.5 py-1">
+                    {tr((QUALITIES[videoQuality] || QUALITIES.balanced).label)}
                   </span>
                 </div>
               </div>
@@ -1371,19 +2032,25 @@ export default function VideoConsultationPage() {
             >
               <div className="flex items-center gap-2">
                 <ControlButton
-                  title={audioEnabled ? 'Mute Microphone' : 'Unmute Microphone'}
+                  title={
+                    audioEnabled
+                      ? tr('Mute Microphone')
+                      : tr('Unmute Microphone')
+                  }
                   onClick={() => void toggleAudio()}
                 >
                   {audioEnabled ? <IconMic /> : <IconMicOff />}
                 </ControlButton>
                 <ControlButton
-                  title={videoEnabled ? 'Turn Camera Off' : 'Turn Camera On'}
+                  title={
+                    videoEnabled ? tr('Turn Camera Off') : tr('Turn Camera On')
+                  }
                   onClick={() => void toggleVideo()}
                 >
                   {videoEnabled ? <IconCamera /> : <IconCameraOff />}
                 </ControlButton>
                 <ControlButton
-                  title="Chat"
+                  title={tr('Chat')}
                   active={activePanel === 'chat'}
                   onClick={() =>
                     setActivePanel((prev) => (prev === 'chat' ? '' : 'chat'))
@@ -1391,18 +2058,32 @@ export default function VideoConsultationPage() {
                 >
                   <IconChat />
                 </ControlButton>
-                <ControlButton title="Share File" onClick={triggerFilePicker}>
+                <ControlButton
+                  title={tr('Transcript')}
+                  active={activePanel === 'transcript'}
+                  onClick={() =>
+                    setActivePanel((prev) =>
+                      prev === 'transcript' ? '' : 'transcript',
+                    )
+                  }
+                >
+                  <IconTranscript />
+                </ControlButton>
+                <ControlButton
+                  title={tr('Share File')}
+                  onClick={triggerFilePicker}
+                >
                   <IconFile />
                 </ControlButton>
                 <ControlButton
-                  title={isHandRaised ? 'Lower Hand' : 'Raise Hand'}
+                  title={isHandRaised ? tr('Lower Hand') : tr('Raise Hand')}
                   active={isHandRaised}
                   onClick={() => void toggleHand()}
                 >
                   <IconHand />
                 </ControlButton>
                 <ControlButton
-                  title="People"
+                  title={tr('People')}
                   active={activePanel === 'people'}
                   onClick={() =>
                     setActivePanel((prev) =>
@@ -1413,7 +2094,7 @@ export default function VideoConsultationPage() {
                   <IconPeople />
                 </ControlButton>
                 <ControlButton
-                  title="More Controls"
+                  title={tr('More Controls')}
                   onClick={() => setShowMore((prev) => !prev)}
                   buttonRef={moreToggleRef}
                 >
@@ -1440,7 +2121,7 @@ export default function VideoConsultationPage() {
                   }}
                   className="block w-full rounded-lg px-2 py-1.5 text-left hover:bg-white/15"
                 >
-                  Copy Room ID
+                  {tr('Copy Room ID')}
                 </button>
                 <button
                   type="button"
@@ -1450,7 +2131,31 @@ export default function VideoConsultationPage() {
                   }}
                   className="block w-full rounded-lg px-2 py-1.5 text-left hover:bg-white/15"
                 >
-                  Re-send Invite
+                  {tr('Re-send Invite')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActivePanel((prev) =>
+                      prev === 'transcript' ? '' : 'transcript',
+                    );
+                    setShowMore(false);
+                  }}
+                  className="block w-full rounded-lg px-2 py-1.5 text-left hover:bg-white/15"
+                >
+                  {tr('Open transcript')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void persistTranscript({
+                      status: isConnected ? 'active' : 'completed',
+                    });
+                    setShowMore(false);
+                  }}
+                  className="block w-full rounded-lg px-2 py-1.5 text-left hover:bg-white/15"
+                >
+                  {tr('Save transcript')}
                 </button>
                 <button
                   type="button"
@@ -1460,7 +2165,7 @@ export default function VideoConsultationPage() {
                   }}
                   className="block w-full rounded-lg px-2 py-1.5 text-left hover:bg-white/15"
                 >
-                  Share a file
+                  {tr('Share a file')}
                 </button>
                 <button
                   type="button"
@@ -1472,7 +2177,7 @@ export default function VideoConsultationPage() {
                   }}
                   className="block w-full rounded-lg px-2 py-1.5 text-left hover:bg-white/15"
                 >
-                  Show people
+                  {tr('Show people')}
                 </button>
                 <button
                   type="button"
@@ -1482,7 +2187,7 @@ export default function VideoConsultationPage() {
                   }}
                   className="block w-full rounded-lg px-2 py-1.5 text-left hover:bg-white/15"
                 >
-                  {isFullscreen ? 'Exit Full Screen' : 'Go Full Screen'}
+                  {isFullscreen ? tr('Exit Full Screen') : tr('Go Full Screen')}
                 </button>
                 <button
                   type="button"
@@ -1492,7 +2197,7 @@ export default function VideoConsultationPage() {
                   }}
                   className="mt-1 block w-full rounded-lg bg-red-600/90 px-2 py-1.5 text-left font-semibold text-white hover:bg-red-700"
                 >
-                  End Call
+                  {tr('End Call')}
                 </button>
               </div>
             )}
@@ -1504,10 +2209,167 @@ export default function VideoConsultationPage() {
                   isFullscreen ? 'right-4 top-4' : 'right-3 top-12',
                 ].join(' ')}
               >
+                {activePanel === 'transcript' && (
+                  <div>
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold">
+                          {tr('Transcript')}
+                        </p>
+                        <p className="text-[10px] text-slate-300">
+                          {transcriptEntries.length} {tr('entries')}
+                          {transcriptUpdatedAt
+                            ? ` - ${tr('saved')} ${formatTranscriptSavedAt(transcriptUpdatedAt)}`
+                            : ''}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void persistTranscript({
+                              status: isConnected ? 'active' : 'completed',
+                            })
+                          }
+                          disabled={transcriptSaving}
+                          className="rounded-xl bg-blue-600 px-2.5 py-1.5 text-[10px] font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          {transcriptSaving ? tr('Saving...') : tr('Save')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActivePanel('')}
+                          className="rounded-full bg-white/10 p-1 hover:bg-white/20"
+                        >
+                          <IconClose />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mb-2 rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] font-medium text-emerald-100">
+                            {autoTranscriptError
+                              ? autoTranscriptError
+                              : autoTranscriptListening
+                                ? tr('Listening for speech...')
+                                : speechSupported
+                                  ? tr(
+                                      'Automatic transcript stays off until you start it.',
+                                    )
+                                  : tr(
+                                      'Live transcript unavailable on this browser.',
+                                    )}
+                          </p>
+                          {!autoTranscriptError && autoTranscriptPreview && (
+                            <p className="mt-1 truncate text-[10px] text-emerald-100/85">
+                              {autoTranscriptPreview}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={toggleAutoTranscript}
+                          disabled={!isConnected && !autoTranscriptEnabled}
+                          className={[
+                            'rounded-xl px-3 py-2 text-[10px] font-semibold disabled:cursor-not-allowed disabled:opacity-60',
+                            autoTranscriptEnabled
+                              ? 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
+                              : 'border border-emerald-200/30 bg-transparent text-emerald-100 hover:bg-white/10',
+                          ].join(' ')}
+                        >
+                          {autoTranscriptEnabled
+                            ? tr('Stop Live Transcript')
+                            : tr('Start Live Transcript')}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="h-44 space-y-2 overflow-y-auto rounded-xl border border-white/10 bg-black/30 p-2">
+                      {transcriptEntries.length === 0 && (
+                        <p className="text-xs text-slate-300">
+                          {tr(
+                            'Add important spoken notes here so the consultation is saved as a transcript.',
+                          )}
+                        </p>
+                      )}
+                      {transcriptEntries.map((entry) => {
+                        const isSelf =
+                          entry.speakerIdentity ===
+                          roomRef.current?.localParticipant?.identity;
+
+                        return (
+                          <div
+                            key={entry.id}
+                            className={[
+                              'rounded-lg px-2 py-1.5 text-xs',
+                              isSelf
+                                ? 'ml-8 bg-emerald-600/90 text-white'
+                                : 'mr-8 bg-white/10 text-slate-100',
+                            ].join(' ')}
+                          >
+                            <div className="mb-0.5 flex items-center justify-between gap-2 text-[10px]">
+                              <span
+                                className={
+                                  isSelf
+                                    ? 'text-emerald-50'
+                                    : 'text-emerald-200'
+                                }
+                              >
+                                {entry.speakerName}
+                              </span>
+                              <span className="text-slate-300">
+                                {formatTranscriptTime(entry.at)}
+                              </span>
+                            </div>
+                            <p>{entry.text}</p>
+                          </div>
+                        );
+                      })}
+                      <div ref={transcriptEndRef} />
+                    </div>
+                    <form
+                      onSubmit={(e) => void addTranscriptEntry(e)}
+                      className="mt-2 space-y-2"
+                    >
+                      <textarea
+                        value={transcriptInput}
+                        onChange={(e) => setTranscriptInput(e.target.value)}
+                        placeholder={tr(
+                          'Add a transcript line or consultation note',
+                        )}
+                        rows={3}
+                        className="w-full rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs text-white outline-none placeholder:text-slate-300"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          type="submit"
+                          className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500"
+                        >
+                          {tr('Add line')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void persistTranscript({
+                              status: isConnected ? 'active' : 'completed',
+                            })
+                          }
+                          disabled={transcriptSaving}
+                          className="rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          {transcriptRecordId
+                            ? tr('Update record')
+                            : tr('Save transcript')}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
                 {activePanel === 'chat' && (
                   <div>
                     <div className="mb-2 flex items-center justify-between">
-                      <p className="text-sm font-semibold">Chat</p>
+                      <p className="text-sm font-semibold">{tr('Chat')}</p>
                       <button
                         type="button"
                         onClick={() => setActivePanel('')}
@@ -1519,7 +2381,7 @@ export default function VideoConsultationPage() {
                     <div className="h-44 space-y-2 overflow-y-auto rounded-xl border border-white/10 bg-black/30 p-2">
                       {chatMessages.length === 0 && (
                         <p className="text-xs text-slate-300">
-                          No messages yet.
+                          {tr('No messages yet.')}
                         </p>
                       )}
                       {chatMessages.map((message) => (
@@ -1549,14 +2411,14 @@ export default function VideoConsultationPage() {
                       <input
                         value={chatInput}
                         onChange={(e) => setChatInput(e.target.value)}
-                        placeholder="Type a message"
+                        placeholder={tr('Type a message')}
                         className="flex-1 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs text-white outline-none placeholder:text-slate-300"
                       />
                       <button
                         type="submit"
                         className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500"
                       >
-                        Send
+                        {tr('Send')}
                       </button>
                     </form>
                   </div>
@@ -1565,7 +2427,9 @@ export default function VideoConsultationPage() {
                 {activePanel === 'files' && (
                   <div>
                     <div className="mb-2 flex items-center justify-between">
-                      <p className="text-sm font-semibold">Shared Files</p>
+                      <p className="text-sm font-semibold">
+                        {tr('Shared Files')}
+                      </p>
                       <button
                         type="button"
                         onClick={() => setActivePanel('')}
@@ -1579,12 +2443,12 @@ export default function VideoConsultationPage() {
                       onClick={triggerFilePicker}
                       className="mb-2 w-full rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500"
                     >
-                      Share New File
+                      {tr('Share New File')}
                     </button>
                     <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-white/10 bg-black/30 p-2">
                       {sharedFiles.length === 0 && (
                         <p className="text-xs text-slate-300">
-                          No files shared yet.
+                          {tr('No files shared yet.')}
                         </p>
                       )}
                       {sharedFiles.map((file) => (
@@ -1608,7 +2472,9 @@ export default function VideoConsultationPage() {
                   <div>
                     <div className="mb-2 flex items-center justify-between">
                       <p className="text-sm font-semibold">
-                        People in Room ({participantLabels.length})
+                        {tr('People in Room ({count})', {
+                          count: participantLabels.length,
+                        })}
                       </p>
                       <button
                         type="button"
@@ -1621,7 +2487,7 @@ export default function VideoConsultationPage() {
                     <div className="max-h-52 space-y-2 overflow-y-auto rounded-xl border border-white/10 bg-black/30 p-2">
                       {participantLabels.length === 0 && (
                         <p className="text-xs text-slate-300">
-                          Nobody else has joined yet.
+                          {tr('Nobody else has joined yet.')}
                         </p>
                       )}
                       {participantLabels.map((participant) => (
@@ -1632,7 +2498,7 @@ export default function VideoConsultationPage() {
                           <span>{participant.label}</span>
                           {participant.raised && (
                             <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] text-amber-200">
-                              Hand raised
+                              {tr('Hand raised')}
                             </span>
                           )}
                         </div>
@@ -1657,7 +2523,7 @@ export default function VideoConsultationPage() {
                 className="aspect-video w-full object-cover"
               />
               <div className="bg-black/70 px-2 py-1 text-[11px] font-semibold text-white">
-                You
+                {tr('You')}
               </div>
             </div>
           </div>

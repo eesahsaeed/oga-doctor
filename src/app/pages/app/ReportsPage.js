@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiClient } from '../../lib/api';
+import { useLanguage } from '../../context/LanguageContext';
 
 const initialData = {
   womensStage: 'general',
@@ -16,6 +17,7 @@ const initialData = {
 };
 
 export default function ReportsPage() {
+  const { tr } = useLanguage();
   const [reports, setReports] = useState(initialData);
   const [status, setStatus] = useState('');
 
@@ -30,7 +32,7 @@ export default function ReportsPage() {
         setReports((prev) => ({ ...prev, ...payload.data }));
       }
     } catch (error) {
-      setStatus(error.message || 'Failed to load reports.');
+      setStatus(error.message || tr('Failed to load reports'));
     }
   };
 
@@ -39,10 +41,10 @@ export default function ReportsPage() {
       <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
-            Reports & Records
+            {tr('Reports & Records')}
           </h1>
           <p className="text-sm text-slate-500">
-            Track vitals, labs, documents, and screening history.
+            {tr('Track vitals, labs, documents, and screening history.')}
           </p>
         </div>
 
@@ -51,7 +53,7 @@ export default function ReportsPage() {
           onClick={loadReports}
           className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 sm:w-auto"
         >
-          Refresh Data
+          {tr('Refresh Data')}
         </button>
       </section>
 
@@ -63,28 +65,28 @@ export default function ReportsPage() {
 
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-sm text-slate-500">Avg Heart Rate</p>
+          <p className="text-sm text-slate-500">{tr('Avg Heart Rate')}</p>
           <p className="mt-1 text-2xl font-bold text-slate-900">
             {reports.overview?.avgHeartRate}
           </p>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-sm text-slate-500">Blood Pressure</p>
+          <p className="text-sm text-slate-500">{tr('Blood Pressure')}</p>
           <p className="mt-1 text-2xl font-bold text-slate-900">
             {reports.overview?.bloodPressure}
           </p>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-sm text-slate-500">Weight</p>
+          <p className="text-sm text-slate-500">{tr('Weight')}</p>
           <p className="mt-1 text-2xl font-bold text-slate-900">
             {reports.overview?.weight}
           </p>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-sm text-slate-500">Hydration</p>
+          <p className="text-sm text-slate-500">{tr('Hydration')}</p>
           <p className="mt-1 text-2xl font-bold text-slate-900">
             {reports.overview?.hydration}
           </p>
@@ -92,10 +94,14 @@ export default function ReportsPage() {
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <h2 className="text-lg font-semibold text-slate-900">Lab Results</h2>
+        <h2 className="text-lg font-semibold text-slate-900">
+          {tr('Lab Results')}
+        </h2>
         <div className="mt-3 space-y-2">
           {(reports.labResults || []).length === 0 && (
-            <p className="text-sm text-slate-500">No lab results available.</p>
+            <p className="text-sm text-slate-500">
+              {tr('No lab results available.')}
+            </p>
           )}
           {(reports.labResults || []).map((result, index) => (
             <article
@@ -103,10 +109,10 @@ export default function ReportsPage() {
               className="rounded-xl border border-slate-100 bg-slate-50 p-3"
             >
               <p className="text-sm font-semibold text-slate-900">
-                {result.test}
+                {tr(result.test)}
               </p>
               <p className="text-xs text-slate-600">{result.date}</p>
-              <p className="text-xs text-slate-500">{result.status}</p>
+              <p className="text-xs text-slate-500">{tr(result.status)}</p>
             </article>
           ))}
         </div>
@@ -114,12 +120,12 @@ export default function ReportsPage() {
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <h2 className="text-lg font-semibold text-slate-900">
-          Medical Documents
+          {tr('Medical Documents')}
         </h2>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {(reports.documents || []).length === 0 && (
             <p className="text-sm text-slate-500 sm:col-span-2">
-              No medical documents uploaded yet.
+              {tr('No medical documents uploaded yet.')}
             </p>
           )}
           {(reports.documents || []).map((doc, index) => (
@@ -128,7 +134,7 @@ export default function ReportsPage() {
               className="rounded-xl border border-slate-100 bg-slate-50 p-3"
             >
               <p className="text-sm font-semibold text-slate-900">
-                {doc.title}
+                {tr(doc.title)}
               </p>
               <p className="mt-1 text-xs text-slate-600">{doc.date}</p>
             </article>
@@ -138,12 +144,12 @@ export default function ReportsPage() {
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <h2 className="text-lg font-semibold text-slate-900">
-          Vaccinations & Screenings
+          {tr('Vaccinations & Screenings')}
         </h2>
         <ul className="mt-3 space-y-2">
           {(reports.vaccinations || []).length === 0 && (
             <li className="text-sm text-slate-500">
-              No vaccination history available.
+              {tr('No vaccination history available.')}
             </li>
           )}
           {(reports.vaccinations || []).map((entry, index) => (
@@ -151,7 +157,7 @@ export default function ReportsPage() {
               key={`${entry}-${index}`}
               className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm text-slate-700"
             >
-              {entry}
+              {tr(entry)}
             </li>
           ))}
         </ul>

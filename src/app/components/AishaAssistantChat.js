@@ -8,6 +8,7 @@ import {
   useLocalRuntime,
 } from '@assistant-ui/react';
 import { apiClient } from '../lib/api';
+import { useLanguage } from '../context/LanguageContext';
 
 const DEFAULT_WELCOME_MESSAGE =
   'Hi, I am Aisha, your Gemini health assistant. Share your symptoms and I will guide your next steps.';
@@ -72,11 +73,15 @@ function AssistantMessageBubble() {
 
 export default function AishaAssistantChat({
   compact = false,
-  placeholder = 'Describe your symptoms...',
-  welcomeMessage = DEFAULT_WELCOME_MESSAGE,
+  placeholder,
+  welcomeMessage,
   showDisclaimer = true,
   className = '',
 }) {
+  const { tr } = useLanguage();
+  const resolvedPlaceholder = placeholder || tr('Describe your symptoms...');
+  const resolvedWelcomeMessage = welcomeMessage || tr(DEFAULT_WELCOME_MESSAGE);
+
   const chatModelAdapter = useMemo(
     () => ({
       async run({ messages, abortSignal }) {
@@ -86,7 +91,7 @@ export default function AishaAssistantChat({
             content: [
               {
                 type: 'text',
-                text: 'Please type a question so I can help you.',
+                text: tr('Please type a question so I can help you.'),
               },
             ],
           };
@@ -102,20 +107,22 @@ export default function AishaAssistantChat({
               type: 'text',
               text:
                 payload?.reply ||
-                'I could not generate a response right now. Please try again.',
+                tr(
+                  'I could not generate a response right now. Please try again.',
+                ),
             },
           ],
         };
       },
     }),
-    [],
+    [tr],
   );
 
   const runtime = useLocalRuntime(chatModelAdapter, {
     initialMessages: [
       {
         role: 'assistant',
-        content: [{ type: 'text', text: welcomeMessage }],
+        content: [{ type: 'text', text: resolvedWelcomeMessage }],
       },
     ],
   });
@@ -132,7 +139,7 @@ export default function AishaAssistantChat({
           >
             <ThreadPrimitive.Empty>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                Ask Aisha a health question to get started.
+                {tr('Ask Aisha a health question to get started.')}
               </div>
             </ThreadPrimitive.Empty>
 
@@ -147,13 +154,13 @@ export default function AishaAssistantChat({
           <ComposerPrimitive.Root className="mt-2 rounded-xl border border-slate-200 bg-white p-2">
             <ComposerPrimitive.Input
               rows={compact ? 2 : 3}
-              placeholder={placeholder}
+              placeholder={resolvedPlaceholder}
               className="w-full resize-none bg-transparent px-2 py-1.5 text-sm text-slate-800 outline-none"
               submitMode="enter"
             />
             <div className="mt-2 flex items-center justify-end">
               <ComposerPrimitive.Send className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50">
-                Send
+                {tr('Send')}
               </ComposerPrimitive.Send>
             </div>
           </ComposerPrimitive.Root>
@@ -161,8 +168,9 @@ export default function AishaAssistantChat({
 
         {showDisclaimer && (
           <p className="mt-2 text-xs text-slate-500">
-            AI guidance only. For emergencies, seek urgent in-person care
-            immediately.
+            {tr(
+              'AI guidance only. For emergencies, seek urgent in-person care immediately.',
+            )}
           </p>
         )}
       </div>

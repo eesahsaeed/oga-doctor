@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../../lib/api';
+import { useLanguage } from '../../context/LanguageContext';
 
 function parseAppointmentStartDate(appointment) {
   if (appointment?.scheduledAt) {
@@ -17,13 +18,16 @@ function formatAsICSDate(date) {
   return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
 }
 
-function buildICS(appointment) {
+function buildICS(appointment, tr) {
   const startDate = parseAppointmentStartDate(appointment);
   const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
-  const title = `OgaDoctor - ${appointment.type || 'Consultation'}`;
-  const description = `Doctor: ${appointment.doctor || 'TBD'}\\nReason: ${
-    appointment.reason || 'General consultation'
-  }`;
+  const title = tr('OgaDoctor - {type}', {
+    type: tr(appointment.type || 'Consultation'),
+  });
+  const description = tr('Doctor: {doctor}\\nReason: {reason}', {
+    doctor: appointment.doctor || 'TBD',
+    reason: appointment.reason || tr('General consultation'),
+  });
 
   return [
     'BEGIN:VCALENDAR',
@@ -52,6 +56,7 @@ function downloadFile(filename, content) {
 }
 
 export default function SchedulePage() {
+  const { tr, formatDate, formatTime } = useLanguage();
   const [appointments, setAppointments] = useState({ upcoming: [], past: [] });
   const [reminderEnabled, setReminderEnabled] = useState(true);
   const [status, setStatus] = useState('');
@@ -64,11 +69,11 @@ export default function SchedulePage() {
 
   const monthLabel = useMemo(
     () =>
-      new Date().toLocaleDateString('en-US', {
+      formatDate(new Date(), {
         month: 'long',
         year: 'numeric',
       }),
-    [],
+    [formatDate],
   );
 
   const loadAppointments = async () => {
@@ -82,7 +87,7 @@ export default function SchedulePage() {
         });
       }
     } catch (error) {
-      setStatus(error.message || 'Failed to load appointments.');
+      setStatus(error.message || tr('Failed to load appointments'));
     } finally {
       setLoading(false);
     }
@@ -121,10 +126,10 @@ export default function SchedulePage() {
 
     try {
       const response = await apiClient.createAppointment(payload);
-      setStatus(`${type} booked successfully.`);
+      setStatus(`${tr(type)} booked successfully.`);
 
       if (response?.appointment) {
-        const ics = buildICS(response.appointment);
+        const ics = buildICS(response.appointment, tr);
         downloadFile(
           `ogadoctor-${response.appointment.id || 'appointment'}.ics`,
           ics,
@@ -133,7 +138,7 @@ export default function SchedulePage() {
 
       await loadAppointments();
     } catch (error) {
-      setStatus(error.message || 'Failed to book appointment.');
+      setStatus(error.message || tr('Failed to book appointment.'));
     }
   };
 
@@ -144,10 +149,10 @@ export default function SchedulePage() {
         statusColor: '#64748b',
         isPast: true,
       });
-      setStatus('Appointment marked as completed.');
+      setStatus(tr('Appointment marked as completed.'));
       await loadAppointments();
     } catch (error) {
-      setStatus(error.message || 'Failed to update appointment.');
+      setStatus(error.message || tr('Failed to update appointment.'));
     }
   };
 
@@ -159,27 +164,31 @@ export default function SchedulePage() {
       });
       setStatus(
         nextValue
-          ? 'Appointment reminders enabled.'
-          : 'Appointment reminders disabled.',
+          ? tr('Appointment reminders enabled.')
+          : tr('Appointment reminders disabled.'),
       );
     } catch (error) {
       setReminderEnabled((prev) => !prev);
-      setStatus(error.message || 'Failed to update reminder settings.');
+      setStatus(error.message || tr('Failed to update reminder settings.'));
     }
   };
 
   const syncAllToCalendar = () => {
     if (!appointments.upcoming.length) {
-      setStatus('No upcoming appointments to sync.');
+      setStatus(tr('No upcoming appointments to sync.'));
       return;
     }
 
     appointments.upcoming.forEach((appointment) => {
-      const ics = buildICS(appointment);
+      const ics = buildICS(appointment, tr);
       downloadFile(`ogadoctor-${appointment.id || 'appointment'}.ics`, ics);
     });
 
-    setStatus(`Prepared ${appointments.upcoming.length} calendar file(s).`);
+    setStatus(
+      tr('Prepared {count} calendar file(s).', {
+        count: appointments.upcoming.length,
+      }),
+    );
   };
 
   return (
@@ -187,7 +196,9 @@ export default function SchedulePage() {
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Schedule</h1>
+            <h1 className="text-2xl font-bold text-slate-900">
+              {tr('Schedule')}
+            </h1>
             <p className="text-sm text-slate-500">{monthLabel}</p>
           </div>
 
@@ -196,7 +207,7 @@ export default function SchedulePage() {
             onClick={syncAllToCalendar}
             className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 sm:w-auto"
           >
-            Sync Upcoming to Calendar
+            {tr('Sync Upcoming to Calendar')}
           </button>
         </div>
 
@@ -213,9 +224,9 @@ export default function SchedulePage() {
           onClick={() => bookAppointment('Video Consultation')}
           className="rounded-2xl bg-blue-600 p-4 text-left text-white hover:bg-blue-700"
         >
-          <p className="font-semibold">Video Consultation</p>
+          <p className="font-semibold">{tr('Video Consultation')}</p>
           <p className="mt-1 text-sm text-blue-100">
-            Book and auto-download calendar invite
+            {tr('Book and auto-download calendar invite')}
           </p>
         </button>
 
@@ -224,8 +235,10 @@ export default function SchedulePage() {
           onClick={() => bookAppointment('In-Person')}
           className="rounded-2xl bg-blue-500 p-4 text-left text-white hover:bg-blue-600"
         >
-          <p className="font-semibold">In-Person Visit</p>
-          <p className="mt-1 text-sm text-blue-100">Book clinic appointment</p>
+          <p className="font-semibold">{tr('In-Person Visit')}</p>
+          <p className="mt-1 text-sm text-blue-100">
+            {tr('Book clinic appointment')}
+          </p>
         </button>
 
         <button
@@ -233,28 +246,32 @@ export default function SchedulePage() {
           onClick={() => bookAppointment('Lab Visit')}
           className="rounded-2xl bg-cyan-600 p-4 text-left text-white hover:bg-cyan-700 sm:col-span-2 lg:col-span-1"
         >
-          <p className="font-semibold">Lab Visit</p>
-          <p className="mt-1 text-sm text-cyan-100">Book routine diagnostics</p>
+          <p className="font-semibold">{tr('Lab Visit')}</p>
+          <p className="mt-1 text-sm text-cyan-100">
+            {tr('Book routine diagnostics')}
+          </p>
         </button>
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold text-slate-900">
-            Upcoming Appointments
+            {tr('Upcoming Appointments')}
           </h2>
           <button
             type="button"
             onClick={loadAppointments}
             className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 sm:w-auto"
           >
-            {loading ? 'Refreshing...' : 'Refresh'}
+            {loading ? tr('Refreshing...') : tr('Refresh')}
           </button>
         </div>
 
         <div className="mt-3 space-y-2">
           {(appointments.upcoming || []).length === 0 && (
-            <p className="text-sm text-slate-500">No upcoming appointments.</p>
+            <p className="text-sm text-slate-500">
+              {tr('No upcoming appointments.')}
+            </p>
           )}
           {(appointments.upcoming || []).map((appt) => (
             <article
@@ -264,21 +281,27 @@ export default function SchedulePage() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-900">
-                    {appt.type} - {appt.time}
+                    {tr(appt.type)} -{' '}
+                    {appt.scheduledAt
+                      ? formatTime(appt.scheduledAt)
+                      : appt.time}
                   </p>
                   <p className="text-xs text-slate-600">{appt.doctor}</p>
-                  <p className="text-xs text-slate-500">{appt.reason}</p>
+                  <p className="text-xs text-slate-500">{tr(appt.reason)}</p>
                 </div>
 
                 <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                   <button
                     type="button"
                     onClick={() =>
-                      downloadFile(`ogadoctor-${appt.id}.ics`, buildICS(appt))
+                      downloadFile(
+                        `ogadoctor-${appt.id}.ics`,
+                        buildICS(appt, tr),
+                      )
                     }
                     className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 sm:w-auto"
                   >
-                    Add to Calendar
+                    {tr('Add to Calendar')}
                   </button>
 
                   <button
@@ -286,7 +309,7 @@ export default function SchedulePage() {
                     onClick={() => markCompleted(appt.id)}
                     className="w-full rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 sm:w-auto"
                   >
-                    Mark Complete
+                    {tr('Mark Complete')}
                   </button>
                 </div>
               </div>
@@ -297,11 +320,13 @@ export default function SchedulePage() {
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <h2 className="text-lg font-semibold text-slate-900">
-          Past Appointments
+          {tr('Past Appointments')}
         </h2>
         <div className="mt-3 space-y-2">
           {(appointments.past || []).length === 0 && (
-            <p className="text-sm text-slate-500">No past appointments yet.</p>
+            <p className="text-sm text-slate-500">
+              {tr('No past appointments yet.')}
+            </p>
           )}
           {(appointments.past || []).map((appt) => (
             <article
@@ -309,10 +334,11 @@ export default function SchedulePage() {
               className="rounded-xl border border-slate-100 bg-slate-50 p-3"
             >
               <p className="text-sm font-semibold text-slate-900">
-                {appt.type} - {appt.time}
+                {tr(appt.type)} -{' '}
+                {appt.scheduledAt ? formatTime(appt.scheduledAt) : appt.time}
               </p>
               <p className="text-xs text-slate-600">{appt.doctor}</p>
-              <p className="text-xs text-slate-500">{appt.reason}</p>
+              <p className="text-xs text-slate-500">{tr(appt.reason)}</p>
             </article>
           ))}
         </div>
@@ -321,10 +347,10 @@ export default function SchedulePage() {
       <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">
-            Appointment Reminders
+            {tr('Appointment Reminders')}
           </h2>
           <p className="text-sm text-slate-500">
-            Get reminder notifications before scheduled visits.
+            {tr('Get reminder notifications before scheduled visits.')}
           </p>
         </div>
 
@@ -338,7 +364,7 @@ export default function SchedulePage() {
               : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
           ].join(' ')}
         >
-          {reminderEnabled ? 'Enabled' : 'Disabled'}
+          {reminderEnabled ? tr('Enabled') : tr('Disabled')}
         </button>
       </section>
     </div>

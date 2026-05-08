@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import MarketingPageLayout from '../../components/marketing/MarketingPageLayout';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import {
   getRememberedUser,
   getStoredFormDraft,
@@ -9,6 +10,7 @@ import {
 
 export default function ContactPage() {
   const { user } = useAuth();
+  const { tr } = useLanguage();
   const [sent, setSent] = useState(false);
   const [form, setForm] = useState(() => {
     const rememberedUser = getRememberedUser() || {};
@@ -40,13 +42,15 @@ export default function ContactPage() {
 
   return (
     <MarketingPageLayout
-      title="Contact"
-      subtitle="Reach OgaDoctor support for onboarding help, account questions, and consultation guidance."
+      title={tr('Contact')}
+      subtitle={tr(
+        'Reach OgaDoctor support for onboarding help, account questions, and consultation guidance.',
+      )}
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div className="space-y-3">
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm text-slate-500">Email</p>
+            <p className="text-sm text-slate-500">{tr('Email')}</p>
             <a
               href="mailto:support@ogadoctor.com.ng"
               className="text-blue-700 font-semibold hover:underline"
@@ -56,7 +60,7 @@ export default function ContactPage() {
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm text-slate-500">Phone</p>
+            <p className="text-sm text-slate-500">{tr('Phone')}</p>
             <a
               href="tel:+2348000000000"
               className="text-blue-700 font-semibold hover:underline"
@@ -66,9 +70,9 @@ export default function ContactPage() {
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm text-slate-500">Office Hours</p>
+            <p className="text-sm text-slate-500">{tr('Office Hours')}</p>
             <p className="text-slate-700">
-              Mon - Sat, 8:00 AM to 8:00 PM (WAT)
+              {tr('Mon - Sat, 8:00 AM to 8:00 PM (WAT)')}
             </p>
           </div>
         </div>
@@ -83,7 +87,7 @@ export default function ContactPage() {
         >
           <label className="block">
             <span className="text-sm font-medium text-slate-700">
-              Your name
+              {tr('Your name')}
             </span>
             <input
               value={form.name}
@@ -94,7 +98,9 @@ export default function ContactPage() {
           </label>
 
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Email</span>
+            <span className="text-sm font-medium text-slate-700">
+              {tr('Email')}
+            </span>
             <input
               type="email"
               value={form.email}
@@ -105,7 +111,9 @@ export default function ContactPage() {
           </label>
 
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Message</span>
+            <span className="text-sm font-medium text-slate-700">
+              {tr('Message')}
+            </span>
             <textarea
               value={form.message}
               onChange={onChange('message')}
@@ -119,13 +127,14 @@ export default function ContactPage() {
             type="submit"
             className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
           >
-            Send Message
+            {tr('Send Message')}
           </button>
 
           {sent && (
             <p className="text-sm text-emerald-700">
-              Thanks, your message has been queued. Our team will respond
-              shortly.
+              {tr(
+                'Thanks, your message has been queued. Our team will respond shortly.',
+              )}
             </p>
           )}
         </form>

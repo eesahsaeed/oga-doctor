@@ -5,18 +5,55 @@ import {
   clearStoredFormDraft,
   getRememberedUser,
   getStoredFormDraft,
-  isOnboardingDone,
   saveStoredFormDraft,
 } from '../../lib/session';
+import { useLanguage } from '../../context/LanguageContext';
+import AuthPageShell from '../../components/auth/AuthPageShell';
+import AuthRoleTabs from '../../components/auth/AuthRoleTabs';
+import AuthStatusMessage from '../../components/auth/AuthStatusMessage';
+import {
+  getAuthRoute,
+  getDefaultAppRoute,
+  normalizeAccountType,
+} from '../../lib/account';
 
-export default function SignInPage() {
+const CONTENT = {
+  patient: {
+    title: 'Sign In',
+    subtitle: 'Access your appointments, reports, and consultations.',
+    highlights: ['Doctor Messages', 'Schedule', 'Reports & Records'],
+    accessLabel: 'Secure patient access',
+    heroEyebrow: 'Healthcare in Your Pocket',
+    heroTitle:
+      'Trusted healthcare access designed for clarity, speed, and confidence.',
+    heroBody:
+      'Manage consultations, messages, appointments, and recovery flows in one calm, secure place.',
+  },
+  doctor: {
+    title: 'Doctor Sign In',
+    subtitle:
+      'Access your patient inbox, consultation room, and doctor profile.',
+    highlights: ['Patient Messages', 'Video Consultation', 'Profile'],
+    accessLabel: 'Secure doctor access',
+    heroEyebrow: 'Your Clinical Workspace',
+    heroTitle:
+      'Stay close to patient conversations, video sessions, and practice updates.',
+    heroBody:
+      'Use one secure workspace to respond to patients, join consultations, and manage your doctor profile.',
+  },
+};
+
+export default function SignInPage({ accountType = 'patient' }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { signIn } = useAuth();
+  const { tr } = useLanguage();
+  const activeAccountType = normalizeAccountType(accountType, 'patient');
+  const content = CONTENT[activeAccountType];
 
   const [form, setForm] = useState(() => {
     const rememberedUser = getRememberedUser() || {};
-    const draft = getStoredFormDraft('signin', {});
+    const draft = getStoredFormDraft(`signin_${activeAccountType}`, {});
     return {
       email: draft.email || rememberedUser.email || '',
       password: '',
@@ -24,6 +61,7 @@ export default function SignInPage() {
   });
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const notice = useMemo(() => location.state?.message || '', [location.state]);
 
   const redirectPath = useMemo(() => {
     if (location.state?.from) return location.state.from;
@@ -35,17 +73,17 @@ export default function SignInPage() {
   };
 
   useEffect(() => {
-    saveStoredFormDraft('signin', {
+    saveStoredFormDraft(`signin_${activeAccountType}`, {
       email: form.email,
     });
-  }, [form.email]);
+  }, [activeAccountType, form.email]);
 
   const onSubmit = async (event) => {
     event.preventDefault();
     setError('');
 
     if (!form.email.trim() || !form.password) {
-      setError('Email and password are required.');
+      setError(tr('Email and password are required.'));
       return;
     }
 
@@ -54,78 +92,103 @@ export default function SignInPage() {
       const payload = await signIn({
         email: form.email.trim().toLowerCase(),
         password: form.password,
+        accountType: activeAccountType,
       });
-      clearStoredFormDraft('signin');
+      clearStoredFormDraft(`signin_${activeAccountType}`);
 
-      if (!isOnboardingDone(payload?.user)) {
-        navigate('/onboarding', { replace: true });
-        return;
-      }
+      const nextRoute =
+        location.state?.from && payload?.user?.accountType !== 'doctor'
+          ? redirectPath
+          : getDefaultAppRoute(payload?.user);
 
-      navigate(redirectPath, { replace: true });
+      navigate(nextRoute, { replace: true });
     } catch (submitError) {
-      setError(submitError.message || 'Unable to sign in right now.');
+      setError(submitError.message || tr('Unable to sign in right now.'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-bold text-slate-900">Sign In</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Access your appointments, reports, and consultations.
-        </p>
-
-        <form className="mt-6 space-y-4" onSubmit={onSubmit}>
-          <label className="block">
-            <span className="text-sm font-medium text-slate-700">Email</span>
-            <input
-              type="email"
-              value={form.email}
-              onChange={onChange('email')}
-              className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
-              placeholder="you@example.com"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-sm font-medium text-slate-700">Password</span>
-            <input
-              type="password"
-              value={form.password}
-              onChange={onChange('password')}
-              className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
-              placeholder="Your password"
-            />
-          </label>
-
-          {error && (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-          >
-            {submitting ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
-
-        <p className="mt-4 text-sm text-slate-600">
-          New to OgaDoctor?{' '}
+    <AuthPageShell
+      title={tr(content.title)}
+      subtitle={tr(content.subtitle)}
+      highlights={content.highlights}
+      accessLabel={tr(content.accessLabel)}
+      heroEyebrow={tr(content.heroEyebrow)}
+      heroTitle={tr(content.heroTitle)}
+      heroBody={tr(content.heroBody)}
+      footer={
+        <p className="text-sm text-slate-600">
+          {tr('New to OgaDoctor?')}{' '}
           <Link
-            to="/auth/signup"
-            className="font-semibold text-blue-600 hover:text-blue-700"
+            to={getAuthRoute(activeAccountType, 'signup')}
+            className="font-semibold text-sky-700 transition hover:text-cyan-600"
           >
-            Create your account
+            {tr('Create Account')}
           </Link>
         </p>
-      </div>
-    </div>
+      }
+    >
+      <form className="space-y-4" onSubmit={onSubmit}>
+        <AuthRoleTabs accountType={activeAccountType} mode="signin" />
+
+        <AuthStatusMessage variant="info">{notice}</AuthStatusMessage>
+
+        <label className="block">
+          <span className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+            {tr('Email address')}
+          </span>
+          <input
+            type="email"
+            value={form.email}
+            onChange={onChange('email')}
+            className="mt-1.5 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100"
+            placeholder={tr('you@example.com')}
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+            {tr('Password')}
+          </span>
+          <input
+            type="password"
+            value={form.password}
+            onChange={onChange('password')}
+            className="mt-1.5 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100"
+            placeholder={tr('Your password')}
+          />
+        </label>
+
+        <div className="flex justify-end">
+          <Link
+            to="/auth/forgot-password"
+            className="text-sm font-medium text-blue-600 hover:text-blue-700"
+            state={{ accountType: activeAccountType }}
+          >
+            {tr('Forgot password?')}
+          </Link>
+        </div>
+
+        <AuthStatusMessage variant="danger">{error}</AuthStatusMessage>
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className="relative z-10 flex h-11 w-full items-center justify-center rounded-2xl text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-60"
+          style={{
+            border: '1px solid #0f172a',
+            backgroundColor: '#ffffff',
+            color: '#0f172a',
+            boxShadow: 'none',
+            appearance: 'none',
+            WebkitAppearance: 'none',
+          }}
+        >
+          {submitting ? tr('Signing in...') : tr('Sign In')}
+        </button>
+      </form>
+    </AuthPageShell>
   );
 }

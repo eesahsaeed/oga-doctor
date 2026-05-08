@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { apiClient } from '../../lib/api';
 import {
   clearStoredFormDraft,
@@ -14,7 +15,7 @@ const defaultForm = {
   gender: '',
   age: '',
   mainHealthCategory: 'general',
-  subHealthCategory: 'chat',
+  subHealthCategory: 'doctor_chat',
   womensStage: 'general',
   pregnancyWeeks: '',
   isFirstPregnancy: true,
@@ -24,6 +25,7 @@ const defaultForm = {
 export default function OnboardingPage() {
   const navigate = useNavigate();
   const { user, refreshProfile } = useAuth();
+  const { tr, languages, setLanguage } = useLanguage();
 
   const [form, setForm] = useState(() => ({
     ...defaultForm,
@@ -40,6 +42,9 @@ export default function OnboardingPage() {
       event.target.type === 'checkbox'
         ? event.target.checked
         : event.target.value;
+    if (field === 'language') {
+      void setLanguage(value);
+    }
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -61,7 +66,9 @@ export default function OnboardingPage() {
       await refreshProfile();
       navigate('/app/dashboard', { replace: true });
     } catch (submitError) {
-      setError(submitError.message || 'Unable to save onboarding right now.');
+      setError(
+        submitError.message || tr('Unable to save onboarding right now.'),
+      );
     } finally {
       setSaving(false);
     }
@@ -71,15 +78,17 @@ export default function OnboardingPage() {
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
       <div className="max-w-3xl mx-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h1 className="text-2xl font-bold text-slate-900">
-          Complete Your Onboarding
+          {tr('Complete Your Onboarding')}
         </h1>
         <p className="text-sm text-slate-500 mt-1">
-          We use this to personalize consultations and recommendations.
+          {tr('We use this to personalize consultations and recommendations.')}
         </p>
 
         {done && (
           <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-            You already completed onboarding. You can still update it below.
+            {tr(
+              'You already completed onboarding. You can still update it below.',
+            )}
           </div>
         )}
 
@@ -88,111 +97,126 @@ export default function OnboardingPage() {
           onSubmit={onSubmit}
         >
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Language</span>
+            <span className="text-sm font-medium text-slate-700">
+              {tr('Language')}
+            </span>
             <select
               value={form.language}
               onChange={onChange('language')}
               className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
             >
-              <option value="en">English</option>
-              <option value="pidgin">Pidgin</option>
+              {languages.map((item) => (
+                <option key={item.code} value={item.code}>
+                  {item.nativeLabel}
+                </option>
+              ))}
             </select>
           </label>
 
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Gender</span>
+            <span className="text-sm font-medium text-slate-700">
+              {tr('Gender')}
+            </span>
             <select
               value={form.gender}
               onChange={onChange('gender')}
               className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
             >
-              <option value="">Select</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
+              <option value="">{tr('Select')}</option>
+              <option value="male">{tr('Male')}</option>
+              <option value="female">{tr('Female')}</option>
             </select>
           </label>
 
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Age</span>
+            <span className="text-sm font-medium text-slate-700">
+              {tr('Age')}
+            </span>
             <input
               type="number"
               value={form.age}
               onChange={onChange('age')}
               className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
-              placeholder="e.g. 34"
+              placeholder="34"
             />
           </label>
 
           <label className="block">
             <span className="text-sm font-medium text-slate-700">
-              Main Health Focus
+              {tr('Main Health Focus')}
             </span>
             <select
               value={form.mainHealthCategory}
               onChange={onChange('mainHealthCategory')}
               className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
             >
-              <option value="general">General Health</option>
-              <option value="womens-health">Women's Health</option>
-              <option value="mental-health">Mental Health</option>
-              <option value="cardiology">Cardiology</option>
+              <option value="general">{tr('General Health')}</option>
+              <option value="womens-health">{tr("Women's Health")}</option>
+              <option value="mental-health">{tr('Mental Health')}</option>
+              <option value="cardiology">{tr('Cardiology')}</option>
             </select>
           </label>
 
           <label className="block">
             <span className="text-sm font-medium text-slate-700">
-              Consultation Preference
+              {tr('Consultation Preference')}
             </span>
             <select
               value={form.subHealthCategory}
               onChange={onChange('subHealthCategory')}
               className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
             >
-              <option value="chat">AI Chat</option>
-              <option value="video">Video Consultation</option>
-              <option value="in_person">In-Person</option>
+              <option value="doctor_chat">{tr('Chat with a Doctor')}</option>
+              <option value="specialist_doctor">
+                {tr('Consult a Specialist Doctor')}
+              </option>
+              <option value="chat">{tr('AI Chat with Aisha')}</option>
+              <option value="video">{tr('Video Consultation')}</option>
+              <option value="in_person">{tr('In-Person')}</option>
             </select>
           </label>
 
           <label className="block">
             <span className="text-sm font-medium text-slate-700">
-              Women's Stage
+              {tr("Women's Stage")}
             </span>
             <select
               value={form.womensStage}
               onChange={onChange('womensStage')}
               className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
             >
-              <option value="general">General</option>
-              <option value="trying_to_conceive">Trying to Conceive</option>
-              <option value="pregnant">Pregnant</option>
-              <option value="postpartum">Postpartum</option>
+              <option value="general">{tr('General')}</option>
+              <option value="trying_to_conceive">
+                {tr('Trying to Conceive')}
+              </option>
+              <option value="pregnant">{tr('Pregnant')}</option>
+              <option value="postpartum">{tr('Postpartum')}</option>
             </select>
           </label>
 
           <label className="block">
             <span className="text-sm font-medium text-slate-700">
-              Pregnancy Weeks (if relevant)
+              {tr('Pregnancy Weeks (if relevant)')}
             </span>
             <input
               type="number"
               value={form.pregnancyWeeks}
               onChange={onChange('pregnancyWeeks')}
               className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
-              placeholder="e.g. 24"
+              placeholder="24"
             />
           </label>
 
           <label className="block sm:col-span-2">
             <span className="text-sm font-medium text-slate-700">
-              Current Conditions
+              {tr('Current Conditions')}
             </span>
             <input
               type="text"
               value={form.conditions}
               onChange={onChange('conditions')}
               className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
-              placeholder="e.g. Hypertension, asthma"
+              placeholder={tr('Hypertension, asthma')}
             />
           </label>
 
@@ -202,7 +226,7 @@ export default function OnboardingPage() {
               checked={Boolean(form.isFirstPregnancy)}
               onChange={onChange('isFirstPregnancy')}
             />
-            First pregnancy (if applicable)
+            {tr('First pregnancy (if applicable)')}
           </label>
 
           {error && (
@@ -217,14 +241,14 @@ export default function OnboardingPage() {
               onClick={() => navigate('/app/dashboard')}
               className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
             >
-              Skip for now
+              {tr('Skip for now')}
             </button>
             <button
               type="submit"
               disabled={saving}
               className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
             >
-              {saving ? 'Saving...' : 'Save & Continue'}
+              {saving ? tr('Saving...') : tr('Save & Continue')}
             </button>
           </div>
         </form>

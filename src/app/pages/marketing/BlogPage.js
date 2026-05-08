@@ -1,5 +1,6 @@
 import MarketingPageLayout from '../../components/marketing/MarketingPageLayout';
 import { Link } from 'react-router-dom';
+import { useLanguage } from '../../context/LanguageContext';
 
 const posts = [
   {
@@ -21,10 +22,14 @@ const posts = [
 ];
 
 export default function BlogPage() {
+  const { tr } = useLanguage();
+
   return (
     <MarketingPageLayout
-      title="Blog"
-      subtitle="Health insights and practical guidance from the OgaDoctor care team."
+      title={tr('Blog')}
+      subtitle={tr(
+        'Health insights and practical guidance from the OgaDoctor care team.',
+      )}
     >
       <div className="space-y-3">
         {posts.map((post) => (
@@ -33,17 +38,17 @@ export default function BlogPage() {
             className="rounded-xl border border-slate-200 bg-slate-50 p-4"
           >
             <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
-              {post.tag}
+              {tr(post.tag)}
             </p>
             <h2 className="mt-1 text-lg font-semibold text-slate-900">
-              {post.title}
+              {tr(post.title)}
             </h2>
-            <p className="mt-2 text-sm text-slate-600">{post.excerpt}</p>
+            <p className="mt-2 text-sm text-slate-600">{tr(post.excerpt)}</p>
             <Link
               to="/auth/signin"
               className="inline-flex mt-3 rounded-xl border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
             >
-              Read Article
+              {tr('Read Article')}
             </Link>
           </article>
         ))}

@@ -1,11 +1,14 @@
-﻿import { Button, Typography } from '@material-tailwind/react';
+import { Button, Typography } from '@material-tailwind/react';
+import { useLanguage } from '../context/LanguageContext';
 
 function Hero() {
+  const { tr } = useLanguage();
+
   return (
     <div className="relative min-h-screen w-full">
       <img
         src="/image/main-bg.jpg"
-        alt="Background medical pattern"
+        alt={tr('Background medical pattern')}
         className="absolute inset-0 h-full w-full object-cover main-background"
       />
       <header className="grid min-h-[43rem] bg-gray-900 px-4 main-container sm:min-h-[48rem] sm:px-8">
@@ -16,15 +19,15 @@ function Hero() {
               color="white"
               className="mb-4 text-3xl leading-tight sm:text-5xl"
             >
-              Your On-the-Go <br /> Virtual Doctor
+              {tr('Your On-the-Go Virtual Doctor')}
             </Typography>
             <Typography
               variant="lead"
               className="mb-7 text-base !text-white sm:text-lg md:pr-16 xl:pr-28"
             >
-              OgaDoctor brings certified medical doctors right to your phone -
-              consult anytime, anywhere in Nigeria, without queues or travel
-              stress.
+              {tr(
+                'OgaDoctor brings certified medical doctors right to your phone - consult anytime, anywhere in Nigeria, without queues or travel stress.',
+              )}
             </Typography>
             <div className="flex flex-col gap-2 md:mb-2 md:w-10/12 md:flex-row">
               <Button
@@ -34,10 +37,10 @@ function Hero() {
               >
                 <img
                   src="/logos/logo-apple.png"
-                  alt="App Store"
+                  alt={tr('App Store')}
                   className="w-6 h-6"
                 />
-                App Store
+                {tr('App Store')}
               </Button>
               <Button
                 size="lg"
@@ -46,10 +49,10 @@ function Hero() {
               >
                 <img
                   src="/logos/logo-google.png"
-                  alt="Google Play"
+                  alt={tr('Google Play')}
                   className="w-6 h-6"
                 />
-                Google Play
+                {tr('Google Play')}
               </Button>
             </div>
           </div>
@@ -76,7 +79,7 @@ function Hero() {
           >
             <img
               src="/image/aisha.png"
-              alt="Aisha AI assistant"
+              alt={tr('Aisha AI assistant')}
               className="absolute inset-0 h-full w-full rounded-2xl object-contain"
             />
           </div>
@@ -89,15 +92,15 @@ function Hero() {
             color="blue-gray"
             className="mb-3 text-2xl sm:text-3xl"
           >
-            OgaDoctor - Your Virtual Clinic
+            {tr('OgaDoctor - Your Virtual Clinic')}
           </Typography>
           <Typography
             variant="paragraph"
             className="font-normal !text-gray-500 lg:w-7/12 xl:w-5/12"
           >
-            Download the app for instant access to licensed doctors, virtual
-            consultations, prescriptions, and health advice - all from the
-            comfort of home or on the move. No more long waits at hospitals.
+            {tr(
+              'Download the app for instant access to licensed doctors, virtual consultations, prescriptions, and health advice - all from the comfort of home or on the move. No more long waits at hospitals.',
+            )}
           </Typography>
         </div>
       </div>

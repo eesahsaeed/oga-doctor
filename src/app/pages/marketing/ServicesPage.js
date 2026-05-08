@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import MarketingPageLayout from '../../components/marketing/MarketingPageLayout';
+import { useLanguage } from '../../context/LanguageContext';
 
 const services = [
   {
@@ -29,10 +30,14 @@ const services = [
 ];
 
 export default function ServicesPage() {
+  const { tr } = useLanguage();
+
   return (
     <MarketingPageLayout
-      title="Services"
-      subtitle="Choose from consultation, diagnostics, and continuous health management services."
+      title={tr('Services')}
+      subtitle={tr(
+        'Choose from consultation, diagnostics, and continuous health management services.',
+      )}
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {services.map((service) => (
@@ -41,14 +46,14 @@ export default function ServicesPage() {
             className="rounded-xl border border-slate-200 bg-slate-50 p-4"
           >
             <h2 className="text-lg font-semibold text-slate-900">
-              {service.title}
+              {tr(service.title)}
             </h2>
-            <p className="mt-2 text-sm text-slate-600">{service.body}</p>
+            <p className="mt-2 text-sm text-slate-600">{tr(service.body)}</p>
             <Link
               to={service.link}
               className="inline-flex mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
             >
-              {service.cta}
+              {tr(service.cta)}
             </Link>
           </article>
         ))}

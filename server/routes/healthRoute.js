@@ -6,9 +6,27 @@ import { HealthModel } from '../schema/UserSchema.js';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { localizeApiPayload, normalizeLanguage } from '../i18n.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'ogadoctor-secret-change-in-production';
+const JWT_SECRET =
+  process.env.JWT_SECRET || 'ogadoctor-secret-change-in-production';
 
+function getRequestedLanguage(req) {
+  return normalizeLanguage(
+    req.body?.language ||
+      req.query?.language ||
+      req.headers['x-language'] ||
+      req.headers['accept-language'] ||
+      'en',
+  );
+}
+
+router.use((req, res, next) => {
+  const originalJson = res.json.bind(res);
+  res.json = (payload) =>
+    originalJson(localizeApiPayload(getRequestedLanguage(req), payload));
+  next();
+});
 
 // ======================
 // SIGNUP
@@ -21,18 +39,23 @@ router.post('/signup', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
     if (password.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters long' });
+      return res
+        .status(400)
+        .json({ error: 'Password must be at least 8 characters long' });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
 
     // Check if user already exists
     const existingUsers = await HealthModel.query('PK')
-      .where('email').eq(normalizedEmail)
+      .where('email')
+      .eq(normalizedEmail)
       .exec();
 
     if (existingUsers.length > 0) {
-      return res.status(409).json({ error: 'User with this email already exists' });
+      return res
+        .status(409)
+        .json({ error: 'User with this email already exists' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
@@ -42,27 +65,27 @@ router.post('/signup', async (req, res) => {
       PK: uuidv4(),
       email: normalizedEmail,
       entityType: 'EMAIL',
-      password: hashedPassword, 
+      password: hashedPassword,
     };
 
     await HealthModel.create(item);
 
-    const token = jwt.sign(
-      { userId, email: normalizedEmail },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const token = jwt.sign({ userId, email: normalizedEmail }, JWT_SECRET, {
+      expiresIn: '7d',
+    });
 
     res.status(201).json({
       success: true,
       userId,
       email: normalizedEmail,
       token,
-      message: 'Account created successfully'
+      message: 'Account created successfully',
     });
   } catch (err) {
     console.error('Signup error:', err);
-    res.status(500).json({ error: 'Failed to create user', details: err.message });
+    res
+      .status(500)
+      .json({ error: 'Failed to create user', details: err.message });
   }
 });
 
@@ -75,7 +98,7 @@ router.get('/profile/:email', async (req, res) => {
 
     const profile = await HealthModel.get({
       PK: `USER#${normalizedEmail}`,
-      email: normalizedEmail
+      email: normalizedEmail,
     });
 
     if (!profile) {
@@ -87,7 +110,9 @@ router.get('/profile/:email', async (req, res) => {
     res.json(safeProfile);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to fetch profile', details: err.message });
+    res
+      .status(500)
+      .json({ error: 'Failed to fetch profile', details: err.message });
   }
 });
 
@@ -106,7 +131,7 @@ router.post('/users/:userId/appointments', async (req, res) => {
 
     const item = {
       PK: `USER#${userId}`,
-      email,                          // Required rangeKey
+      email, // Required rangeKey
       entityType: 'APPOINTMENT',
       apptId,
       startTime: data.startTime,
@@ -126,7 +151,9 @@ router.post('/users/:userId/appointments', async (req, res) => {
     res.status(201).json(item);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to create appointment', details: err.message });
+    res
+      .status(500)
+      .json({ error: 'Failed to create appointment', details: err.message });
   }
 });
 
@@ -137,8 +164,10 @@ router.get('/users/:userId/appointments/upcoming', async (req, res) => {
 
     const items = await HealthModel.query('PK')
       .eq(`USER#${userId}`)
-      .where('entityType').eq('APPOINTMENT')
-      .filter('startTime').ge(now)
+      .where('entityType')
+      .eq('APPOINTMENT')
+      .filter('startTime')
+      .ge(now)
       .descending()
       .limit(20)
       .exec();
@@ -146,7 +175,10 @@ router.get('/users/:userId/appointments/upcoming', async (req, res) => {
     res.json(items);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to get upcoming appointments', details: err.message });
+    res.status(500).json({
+      error: 'Failed to get upcoming appointments',
+      details: err.message,
+    });
   }
 });
 
@@ -174,7 +206,9 @@ router.post('/users/:userId/vitals', async (req, res) => {
     res.status(201).json(item);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to create vital', details: err.message });
+    res
+      .status(500)
+      .json({ error: 'Failed to create vital', details: err.message });
   }
 });
 
@@ -185,7 +219,8 @@ router.get('/users/:userId/vitals/recent', async (req, res) => {
 
     const items = await HealthModel.query('PK')
       .eq(`USER#${userId}`)
-      .where('entityType').eq('VITAL')
+      .where('entityType')
+      .eq('VITAL')
       .descending()
       .limit(limit)
       .exec();
@@ -193,7 +228,9 @@ router.get('/users/:userId/vitals/recent', async (req, res) => {
     res.json(items);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to get recent vitals', details: err.message });
+    res
+      .status(500)
+      .json({ error: 'Failed to get recent vitals', details: err.message });
   }
 });
 
@@ -228,7 +265,9 @@ router.post('/users/:userId/notifications', async (req, res) => {
     res.status(201).json(item);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to create notification', details: err.message });
+    res
+      .status(500)
+      .json({ error: 'Failed to create notification', details: err.message });
   }
 });
 
@@ -238,14 +277,17 @@ router.get('/users/:userId/notifications', async (req, res) => {
 
     const items = await HealthModel.query('PK')
       .eq(`USER#${userId}`)
-      .where('entityType').eq('NOTIFICATION')
+      .where('entityType')
+      .eq('NOTIFICATION')
       .descending()
       .exec();
 
     res.json(items);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to get notifications', details: err.message });
+    res
+      .status(500)
+      .json({ error: 'Failed to get notifications', details: err.message });
   }
 });
 

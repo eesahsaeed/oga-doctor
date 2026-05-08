@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../../lib/api';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function NotificationsPage() {
+  const { tr, formatDateTime } = useLanguage();
   const [notifications, setNotifications] = useState([]);
   const [filter, setFilter] = useState('all');
   const [pushEnabled, setPushEnabled] = useState(true);
@@ -29,7 +31,7 @@ export default function NotificationsPage() {
         setNotifications(payload.notifications || []);
       }
     } catch (error) {
-      setStatus(error.message || 'Failed to load notifications.');
+      setStatus(error.message || tr('Failed to load notifications'));
     }
   };
 
@@ -47,10 +49,10 @@ export default function NotificationsPage() {
   const markAllRead = async () => {
     try {
       await apiClient.markAllNotificationsRead();
-      setStatus('All notifications marked as read.');
+      setStatus(tr('All notifications marked as read.'));
       await loadNotifications();
     } catch (error) {
-      setStatus(error.message || 'Unable to mark notifications as read.');
+      setStatus(error.message || tr('Unable to mark notifications as read.'));
     }
   };
 
@@ -61,12 +63,14 @@ export default function NotificationsPage() {
     try {
       await apiClient.updateNotificationSettings({ pushEnabled: next });
       setStatus(
-        next ? 'Push notifications enabled.' : 'Push notifications disabled.',
+        next
+          ? tr('Push notifications enabled.')
+          : tr('Push notifications disabled.'),
       );
     } catch (error) {
       setPushEnabled((prev) => !prev);
       setStatus(
-        error.message || 'Unable to update push notification settings.',
+        error.message || tr('Unable to update push notification settings.'),
       );
     }
   };
@@ -90,21 +94,23 @@ export default function NotificationsPage() {
     <div className="space-y-6">
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-2xl font-bold text-slate-900">Notifications</h1>
+          <h1 className="text-2xl font-bold text-slate-900">
+            {tr('Notifications')}
+          </h1>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             <button
               type="button"
               onClick={loadNotifications}
               className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 sm:w-auto"
             >
-              Refresh
+              {tr('Refresh')}
             </button>
             <button
               type="button"
               onClick={markAllRead}
               className="w-full rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 sm:w-auto"
             >
-              Mark All Read
+              {tr('Mark All Read')}
             </button>
           </div>
         </div>
@@ -124,7 +130,7 @@ export default function NotificationsPage() {
                 : 'bg-slate-100 text-slate-700',
             ].join(' ')}
           >
-            All
+            {tr('All')}
           </button>
 
           <button
@@ -137,7 +143,7 @@ export default function NotificationsPage() {
                 : 'bg-slate-100 text-slate-700',
             ].join(' ')}
           >
-            Unread ({unreadCount})
+            {tr('Unread')} ({unreadCount})
           </button>
         </div>
 
@@ -151,14 +157,14 @@ export default function NotificationsPage() {
               : 'bg-slate-100 text-slate-700',
           ].join(' ')}
         >
-          Push {pushEnabled ? 'On' : 'Off'}
+          {pushEnabled ? tr('Push On') : tr('Push Off')}
         </button>
       </section>
 
       <section className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         {filtered.length === 0 ? (
           <p className="text-sm text-slate-500">
-            No notifications in this filter.
+            {tr('No notifications in this filter.')}
           </p>
         ) : (
           filtered.map((notification) => (
@@ -174,13 +180,15 @@ export default function NotificationsPage() {
               ].join(' ')}
             >
               <p className="text-sm font-semibold text-slate-900">
-                {notification.title}
+                {tr(notification.title)}
               </p>
               <p className="mt-1 text-xs text-slate-600">
-                {notification.description}
+                {tr(notification.description)}
               </p>
               <p className="mt-2 text-xs text-slate-500">
-                {notification.timestamp}
+                {notification.createdAt
+                  ? formatDateTime(notification.createdAt)
+                  : tr(notification.timestamp)}
               </p>
             </button>
           ))

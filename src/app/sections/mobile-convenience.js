@@ -1,6 +1,7 @@
 import React from 'react';
 import InfoCard from '../components/InfoCard';
 import { Typography, Button } from '@material-tailwind/react';
+import { useLanguage } from '../context/LanguageContext';
 
 const STATS = [
   {
@@ -22,6 +23,8 @@ const STATS = [
 ];
 
 export function MobileConvenience() {
+  const { tr } = useLanguage();
+
   return (
     <section className="bg-gray-50 px-4 py-16 sm:px-6 md:px-8 lg:py-20">
       <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 lg:grid-cols-2 xl:gap-16">
@@ -29,7 +32,7 @@ export function MobileConvenience() {
           <div className="relative w-full max-w-[360px] md:max-w-[420px] lg:max-w-[480px]">
             <img
               src="/image/iphone.png"
-              alt="OgaDoctor app on iPhone showing virtual consultation"
+              alt={tr('OgaDoctor app on iPhone showing virtual consultation')}
               className="w-full h-auto drop-shadow-2xl rounded-3xl"
             />
 
@@ -43,22 +46,22 @@ export function MobileConvenience() {
             color="blue-gray"
             className="mb-5 text-3xl font-bold leading-tight sm:text-4xl md:text-5xl"
           >
-            Healthcare in Your Pocket
+            {tr('Healthcare in Your Pocket')}
           </Typography>
 
           <Typography
             variant="lead"
             className="mb-8 text-lg !text-gray-600 leading-relaxed sm:text-xl md:text-2xl"
           >
-            Consult certified doctors anytime, anywhere in Nigeria - right from
-            your phone. No travel, no long queues, just fast, reliable care
-            whenever you need it most.
+            {tr(
+              'Consult certified doctors anytime, anywhere in Nigeria - right from your phone. No travel, no long queues, just fast, reliable care whenever you need it most.',
+            )}
           </Typography>
 
           <div className="mb-10 mt-6 grid grid-cols-2 gap-6 md:gap-8">
             {STATS.map(({ title, description }) => (
               <InfoCard key={title} title={title}>
-                {description}
+                {tr(description)}
               </InfoCard>
             ))}
           </div>
@@ -69,7 +72,7 @@ export function MobileConvenience() {
               color="blue-gray"
               className="mb-2 sm:mb-0 sm:mr-4"
             >
-              Get the App
+              {tr('Get the App')}
             </Typography>
 
             <Button
@@ -82,10 +85,10 @@ export function MobileConvenience() {
             >
               <img
                 src="/logos/logo-apple.png"
-                alt="Apple App Store"
+                alt={tr('Apple App Store')}
                 className="w-7 h-7"
               />
-              App Store
+              {tr('App Store')}
             </Button>
 
             <Button
@@ -101,16 +104,17 @@ export function MobileConvenience() {
             >
               <img
                 src="/logos/logo-google.png"
-                alt="Google Play Store"
+                alt={tr('Google Play Store')}
                 className="w-7 h-7"
               />
-              Google Play
+              {tr('Google Play')}
             </Button>
           </div>
 
           <Typography variant="small" className="mt-6 text-gray-500">
-            Available now for iOS and Android - Free to download - No
-            registration required for first consultation
+            {tr(
+              'Available now for iOS and Android - Free to download - No registration required for first consultation',
+            )}
           </Typography>
         </div>
       </div>

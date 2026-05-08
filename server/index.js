@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import userRoutes from './routes/userRoutes.js';
+import { localizeApiPayload, normalizeLanguage } from './i18n.js';
 import { startKeepAliveCron } from './services/keepAlive.js';
 
 dotenv.config();
@@ -20,6 +21,21 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
+
+function getRequestedLanguage(req) {
+  return normalizeLanguage(
+    req.query?.language ||
+      req.headers['x-language'] ||
+      req.headers['accept-language'] ||
+      'en',
+  );
+}
+
+function localizedJson(req, res, status, payload) {
+  return res
+    .status(status)
+    .json(localizeApiPayload(getRequestedLanguage(req), payload));
+}
 
 app.use(cors());
 app.use(express.json());
@@ -51,11 +67,11 @@ function resolveClientBuildPath() {
 
 // Routes
 app.use('/api', userRoutes);
-app.get('/api/health', (_req, res) => {
-  res.status(200).json({ success: true, message: 'OK' });
+app.get('/api/health', (req, res) => {
+  localizedJson(req, res, 200, { success: true, message: 'OK' });
 });
-app.get('/api/ping', (_req, res) => {
-  res.status(200).json({
+app.get('/api/ping', (req, res) => {
+  localizedJson(req, res, 200, {
     success: true,
     message: 'pong',
     timestamp: new Date().toISOString(),
@@ -98,7 +114,7 @@ if (clientBuildPath) {
       return next();
     }
 
-    return res.status(503).json({
+    return localizedJson(req, res, 503, {
       success: false,
       message:
         'Frontend build is missing. Run `npm run build` before starting the server.',

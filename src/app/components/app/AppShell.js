@@ -1,15 +1,8 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-
-const navItems = [
-  { to: '/app/dashboard', label: 'Dashboard' },
-  { to: '/app/schedule', label: 'Schedule' },
-  { to: '/app/notifications', label: 'Notifications' },
-  { to: '/app/reports', label: 'Reports' },
-  { to: '/app/consultation/chat', label: 'AI Chat' },
-  { to: '/app/consultation/video', label: 'Video Visit' },
-  { to: '/app/profile', label: 'Profile' },
-];
+import { useLanguage } from '../../context/LanguageContext';
+import LanguageSelect from '../shared/LanguageSelect';
+import { getAuthRoute, isDoctorUser } from '../../lib/account';
 
 function linkClassName({ isActive }) {
   return [
@@ -21,10 +14,32 @@ function linkClassName({ isActive }) {
 export default function AppShell() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const { tr } = useLanguage();
+  const isDoctor = isDoctorUser(user);
+  const navItems = isDoctor
+    ? [
+        { to: '/app/dashboard', label: 'Dashboard' },
+        { to: '/app/consultation/messages', label: 'Patient Messages' },
+        { to: '/app/consultation/video', label: 'Video Visit' },
+        { to: '/app/profile', label: 'Profile' },
+      ]
+    : [
+        { to: '/app/dashboard', label: 'Dashboard' },
+        { to: '/app/consultation/doctors', label: 'Doctors' },
+        { to: '/app/consultation/specialists', label: 'Specialists' },
+        { to: '/app/consultation/messages', label: 'Doctor Messages' },
+        { to: '/app/consultation/chat', label: 'AI Chat' },
+        { to: '/app/consultation/video', label: 'Video Visit' },
+        { to: '/app/schedule', label: 'Schedule' },
+        { to: '/app/notifications', label: 'Notifications' },
+        { to: '/app/reports', label: 'Reports' },
+        { to: '/app/profile', label: 'Profile' },
+      ];
 
   const onSignOut = () => {
+    const nextRoute = getAuthRoute(user?.accountType, 'signin');
     signOut();
-    navigate('/auth/signin', { replace: true });
+    navigate(nextRoute, { replace: true });
   };
 
   return (
@@ -41,23 +56,30 @@ export default function AppShell() {
                 OgaDoctor Care
               </p>
               <p className="max-w-[88vw] truncate text-xs text-slate-500 sm:max-w-none">
-                {user?.name || 'Patient'} - {user?.email || 'Signed in'}
+                {user?.name || tr(isDoctor ? 'Doctor' : 'Patient')} -{' '}
+                {user?.email || tr('Signed in')}
               </p>
             </button>
 
-            <button
-              type="button"
-              onClick={onSignOut}
-              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 sm:w-auto"
-            >
-              Sign Out
-            </button>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+              <LanguageSelect
+                showLabel={false}
+                selectClassName="min-w-[120px]"
+              />
+              <button
+                type="button"
+                onClick={onSignOut}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 sm:w-auto"
+              >
+                {tr('Sign Out')}
+              </button>
+            </div>
           </div>
 
           <nav className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {navItems.map((item) => (
               <NavLink key={item.to} to={item.to} className={linkClassName}>
-                {item.label}
+                {tr(item.label)}
               </NavLink>
             ))}
           </nav>

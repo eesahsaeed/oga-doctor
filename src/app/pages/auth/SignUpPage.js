@@ -7,17 +7,71 @@ import {
   getStoredFormDraft,
   saveStoredFormDraft,
 } from '../../lib/session';
+import { useLanguage } from '../../context/LanguageContext';
+import AuthPageShell from '../../components/auth/AuthPageShell';
+import AuthRoleTabs from '../../components/auth/AuthRoleTabs';
+import AuthStatusMessage from '../../components/auth/AuthStatusMessage';
+import {
+  getAuthRoute,
+  getDefaultAppRoute,
+  normalizeAccountType,
+} from '../../lib/account';
 
-export default function SignUpPage() {
+const DOCTOR_TITLE_OPTIONS = [
+  'General Practitioner',
+  'Primary Care Doctor',
+  'Family Physician',
+  'Medical Officer',
+  'Resident Doctor',
+  'Consultant Specialist',
+];
+
+function normalizeDoctorTitle(value = '') {
+  return DOCTOR_TITLE_OPTIONS.includes(value) ? value : '';
+}
+
+const CONTENT = {
+  patient: {
+    title: 'Create Account',
+    subtitle: 'Start consultations, scheduling, and health tracking.',
+    highlights: ['Doctors', 'AI Consultation', 'Video Consultation'],
+    accessLabel: 'Secure patient access',
+    heroEyebrow: 'Personal Care Starts Here',
+    heroTitle:
+      'Create your patient account and keep every care step in one place.',
+    heroBody:
+      'Book consultations, message doctors, review reports, and keep your health history close by.',
+  },
+  doctor: {
+    title: 'Doctor Sign Up',
+    subtitle:
+      'Activate your doctor account for patient chat, video visits, and profile management.',
+    highlights: ['Patient Messages', 'Video Consultation', 'Profile'],
+    accessLabel: 'Secure doctor access',
+    heroEyebrow: 'Join the Care Network',
+    heroTitle:
+      'Set up your doctor account and start receiving patient consultations.',
+    heroBody:
+      'Create a secure doctor login for direct patient replies, consultation sessions, and practice visibility.',
+  },
+};
+
+export default function SignUpPage({ accountType = 'patient' }) {
   const navigate = useNavigate();
   const { signUp } = useAuth();
+  const { tr } = useLanguage();
+  const activeAccountType = normalizeAccountType(accountType, 'patient');
+  const isDoctor = activeAccountType === 'doctor';
+  const content = CONTENT[activeAccountType];
 
   const [form, setForm] = useState(() => {
     const rememberedUser = getRememberedUser() || {};
-    const draft = getStoredFormDraft('signup', {});
+    const draft = getStoredFormDraft(`signup_${activeAccountType}`, {});
     return {
       name: draft.name || rememberedUser.name || '',
       email: draft.email || rememberedUser.email || '',
+      title: normalizeDoctorTitle(draft.title),
+      specialty: draft.specialty || '',
       password: '',
       confirmPassword: '',
     };
@@ -30,136 +84,200 @@ export default function SignUpPage() {
   };
 
   useEffect(() => {
-    saveStoredFormDraft('signup', {
+    saveStoredFormDraft(`signup_${activeAccountType}`, {
       name: form.name,
       email: form.email,
+      title: form.title,
+      specialty: form.specialty,
     });
-  }, [form.name, form.email]);
+  }, [activeAccountType, form.email, form.name, form.specialty, form.title]);
 
   const onSubmit = async (event) => {
     event.preventDefault();
     setError('');
 
     if (!form.name.trim()) {
-      setError('Full name is required.');
+      setError(tr('Full name is required.'));
       return;
     }
 
     if (!form.email.trim()) {
-      setError('Email is required.');
+      setError(tr('Email is required.'));
+      return;
+    }
+
+    if (isDoctor && !form.title.trim()) {
+      setError(tr('Professional title is required.'));
+      return;
+    }
+
+    if (isDoctor && !form.specialty.trim()) {
+      setError(tr('Specialty is required.'));
       return;
     }
 
     if (form.password.length < 6) {
-      setError('Password must be at least 6 characters long.');
+      setError(tr('Password must be at least 6 characters long.'));
       return;
     }
 
     if (form.password !== form.confirmPassword) {
-      setError('Passwords do not match.');
+      setError(tr('Passwords do not match.'));
       return;
     }
 
     setSubmitting(true);
 
     try {
-      await signUp({
+      const response = await signUp({
         name: form.name.trim(),
         email: form.email.trim().toLowerCase(),
+        accountType: activeAccountType,
+        title: form.title.trim(),
+        specialty: form.specialty.trim(),
         password: form.password,
       });
-      clearStoredFormDraft('signup');
+      clearStoredFormDraft(`signup_${activeAccountType}`);
 
-      navigate('/onboarding', { replace: true });
+      navigate(getDefaultAppRoute(response?.user), { replace: true });
     } catch (submitError) {
-      setError(submitError.message || 'Unable to create account right now.');
+      setError(
+        submitError.message || tr('Unable to create account right now.'),
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-bold text-slate-900">Create Account</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Start consultations, scheduling, and health tracking.
-        </p>
-
-        <form className="mt-6 space-y-4" onSubmit={onSubmit}>
-          <label className="block">
-            <span className="text-sm font-medium text-slate-700">
-              Full name
-            </span>
-            <input
-              type="text"
-              value={form.name}
-              onChange={onChange('name')}
-              className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
-              placeholder="John Doe"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-sm font-medium text-slate-700">Email</span>
-            <input
-              type="email"
-              value={form.email}
-              onChange={onChange('email')}
-              className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
-              placeholder="you@example.com"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-sm font-medium text-slate-700">Password</span>
-            <input
-              type="password"
-              value={form.password}
-              onChange={onChange('password')}
-              className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
-              placeholder="At least 6 characters"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-sm font-medium text-slate-700">
-              Confirm password
-            </span>
-            <input
-              type="password"
-              value={form.confirmPassword}
-              onChange={onChange('confirmPassword')}
-              className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
-              placeholder="Repeat your password"
-            />
-          </label>
-
-          {error && (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-          >
-            {submitting ? 'Creating account...' : 'Create Account'}
-          </button>
-        </form>
-
-        <p className="mt-4 text-sm text-slate-600">
-          Already have an account?{' '}
+    <AuthPageShell
+      title={tr(content.title)}
+      subtitle={tr(content.subtitle)}
+      highlights={content.highlights}
+      accessLabel={tr(content.accessLabel)}
+      heroEyebrow={tr(content.heroEyebrow)}
+      heroTitle={tr(content.heroTitle)}
+      heroBody={tr(content.heroBody)}
+      footer={
+        <p className="text-sm text-slate-600">
+          {tr('Already have an account?')}{' '}
           <Link
-            to="/auth/signin"
-            className="font-semibold text-blue-600 hover:text-blue-700"
+            to={getAuthRoute(activeAccountType, 'signin')}
+            className="font-semibold text-sky-700 transition hover:text-cyan-600"
           >
-            Sign in
+            {tr('Sign In')}
           </Link>
         </p>
-      </div>
-    </div>
+      }
+    >
+      <form className="space-y-4" onSubmit={onSubmit}>
+        <AuthRoleTabs accountType={activeAccountType} mode="signup" />
+
+        <label className="block">
+          <span className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+            {tr('Full name')}
+          </span>
+          <input
+            type="text"
+            value={form.name}
+            onChange={onChange('name')}
+            className="mt-1.5 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100"
+            placeholder={tr('John Doe')}
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+            {tr('Email address')}
+          </span>
+          <input
+            type="email"
+            value={form.email}
+            onChange={onChange('email')}
+            className="mt-1.5 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100"
+            placeholder={tr('you@example.com')}
+          />
+        </label>
+
+        {isDoctor && (
+          <>
+            <label className="block">
+              <span className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+                {tr('Professional title')}
+              </span>
+              <select
+                value={form.title}
+                onChange={onChange('title')}
+                className="mt-1.5 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100"
+              >
+                <option value="">{tr('Select professional title')}</option>
+                {DOCTOR_TITLE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {tr(option)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+                {tr('Specialty')}
+              </span>
+              <input
+                type="text"
+                value={form.specialty}
+                onChange={onChange('specialty')}
+                className="mt-1.5 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100"
+                placeholder={tr('General Medicine')}
+              />
+            </label>
+          </>
+        )}
+
+        <label className="block">
+          <span className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+            {tr('Password')}
+          </span>
+          <input
+            type="password"
+            value={form.password}
+            onChange={onChange('password')}
+            className="mt-1.5 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100"
+            placeholder={tr('At least 6 characters')}
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+            {tr('Confirm Password')}
+          </span>
+          <input
+            type="password"
+            value={form.confirmPassword}
+            onChange={onChange('confirmPassword')}
+            className="mt-1.5 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100"
+            placeholder={tr('Repeat your password')}
+          />
+        </label>
+
+        <AuthStatusMessage variant="danger">{error}</AuthStatusMessage>
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className="relative z-10 flex h-11 w-full items-center justify-center rounded-2xl text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-60"
+          style={{
+            border: '1px solid #0f172a',
+            backgroundColor: '#ffffff',
+            color: '#0f172a',
+            boxShadow: 'none',
+            appearance: 'none',
+            WebkitAppearance: 'none',
+          }}
+        >
+          {submitting ? tr('Creating account...') : tr('Create Account')}
+        </button>
+      </form>
+    </AuthPageShell>
   );
 }
