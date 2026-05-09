@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
 
 const KIND_COPY = {
   all: {
-    title: 'Consult a Doctor',
+    title: 'Find the Right Doctor',
     description:
-      'Choose a licensed doctor, start a direct conversation, and continue care inside the app.',
+      'Browse general doctors and specialists in one place, then start the kind of consultation that fits your care needs.',
   },
   general: {
     title: 'Consult a Doctor',
@@ -25,6 +25,16 @@ function getCopy(kind) {
   return KIND_COPY[kind] || KIND_COPY.all;
 }
 
+function normalizeKind(value = '') {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (normalized === 'general' || normalized === 'specialist') {
+    return normalized;
+  }
+  return 'all';
+}
+
 function formatModes(modes = []) {
   return modes
     .map((mode) => {
@@ -35,8 +45,9 @@ function formatModes(modes = []) {
     .join(' | ');
 }
 
-export default function DoctorDirectoryPage({ kind = 'general' }) {
+export default function DoctorDirectoryPage({ kind = 'all' }) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { tr } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [startingDoctorId, setStartingDoctorId] = useState('');
@@ -44,8 +55,9 @@ export default function DoctorDirectoryPage({ kind = 'general' }) {
   const [search, setSearch] = useState('');
   const [doctors, setDoctors] = useState([]);
   const [chatByDoctorId, setChatByDoctorId] = useState({});
+  const activeKind = normalizeKind(searchParams.get('kind') || kind || 'all');
 
-  const copy = getCopy(kind);
+  const copy = getCopy(activeKind);
 
   useEffect(() => {
     let active = true;
@@ -56,7 +68,7 @@ export default function DoctorDirectoryPage({ kind = 'general' }) {
 
       try {
         const [doctorPayload, chatPayload] = await Promise.all([
-          apiClient.doctors({ kind }),
+          apiClient.doctors(activeKind === 'all' ? {} : { kind: activeKind }),
           apiClient.doctorChats(),
         ]);
 
@@ -87,7 +99,7 @@ export default function DoctorDirectoryPage({ kind = 'general' }) {
     return () => {
       active = false;
     };
-  }, [kind]);
+  }, [activeKind, tr]);
 
   const visibleDoctors = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -144,28 +156,46 @@ export default function DoctorDirectoryPage({ kind = 'general' }) {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Link
-              to="/app/consultation/doctors"
+            <button
+              type="button"
               className={[
                 'rounded-xl px-4 py-2 text-sm font-semibold',
-                kind === 'general'
+                activeKind === 'all'
+                  ? 'bg-slate-900 text-white'
+                  : 'border border-slate-300 text-slate-700 hover:bg-slate-100',
+              ].join(' ')}
+              onClick={() => setSearchParams({}, { replace: true })}
+            >
+              {tr('All')}
+            </button>
+            <button
+              type="button"
+              className={[
+                'rounded-xl px-4 py-2 text-sm font-semibold',
+                activeKind === 'general'
                   ? 'bg-blue-600 text-white'
                   : 'border border-slate-300 text-slate-700 hover:bg-slate-100',
               ].join(' ')}
+              onClick={() =>
+                setSearchParams({ kind: 'general' }, { replace: true })
+              }
             >
               {tr('Doctors')}
-            </Link>
-            <Link
-              to="/app/consultation/specialists"
+            </button>
+            <button
+              type="button"
               className={[
                 'rounded-xl px-4 py-2 text-sm font-semibold',
-                kind === 'specialist'
+                activeKind === 'specialist'
                   ? 'bg-blue-600 text-white'
                   : 'border border-slate-300 text-slate-700 hover:bg-slate-100',
               ].join(' ')}
+              onClick={() =>
+                setSearchParams({ kind: 'specialist' }, { replace: true })
+              }
             >
               {tr('Specialists')}
-            </Link>
+            </button>
             <Link
               to="/app/consultation/messages"
               className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
@@ -213,7 +243,7 @@ export default function DoctorDirectoryPage({ kind = 'general' }) {
         {!loading && visibleDoctors.length === 0 && (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500 shadow-sm">
             {tr(
-              'No doctors matched your search. Try another specialty or switch between general doctors and specialists.',
+              'No doctors matched your search. Try another specialty or switch between all doctors, general doctors, and specialists.',
             )}
           </div>
         )}

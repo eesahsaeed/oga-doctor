@@ -23,7 +23,7 @@ const initialDashboard = {
 function getServiceRoute(actionId) {
   if (actionId === 'consult_doctor') return '/app/consultation/doctors';
   if (actionId === 'consult_specialist') {
-    return '/app/consultation/specialists';
+    return '/app/consultation/doctors?kind=specialist';
   }
   if (actionId === 'doctor_chat') return '/app/consultation/messages';
   if (actionId === 'records') return '/app/reports';
@@ -62,36 +62,40 @@ function DoctorDashboard({
   }, [chats]);
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-sky-900 p-4 text-white sm:p-6">
-        <h1 className="text-2xl font-bold sm:text-3xl">
-          {tr('Doctor Workspace')}
-        </h1>
-        <p className="mt-2 max-w-2xl text-slate-200">
-          {tr(
-            'Respond to patient messages, join consultations, and keep your doctor profile ready across web and mobile.',
-          )}
-        </p>
+    <div className="space-y-4">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
+              {tr('Doctor Workspace')}
+            </h1>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+              {tr(
+                'Respond to patient messages, join consultations, and keep your doctor profile ready across web and mobile.',
+              )}
+            </p>
+          </div>
 
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-          <Link
-            to="/app/consultation/messages"
-            className="w-full rounded-xl bg-white px-4 py-2 text-center text-sm font-semibold text-slate-900 hover:bg-slate-100 sm:w-auto"
-          >
-            {tr('Open Patient Messages')}
-          </Link>
-          <Link
-            to="/app/consultation/video"
-            className="w-full rounded-xl bg-white/15 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-white/20 sm:w-auto"
-          >
-            {tr('Join Video Consultation')}
-          </Link>
-          <Link
-            to="/app/profile"
-            className="w-full rounded-xl bg-white/15 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-white/20 sm:w-auto"
-          >
-            {tr('Update Profile')}
-          </Link>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap lg:justify-end">
+            <Link
+              to="/app/consultation/messages"
+              className="w-full rounded-xl border border-slate-200 bg-slate-900 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-slate-800 sm:w-auto"
+            >
+              {tr('Open Patient Messages')}
+            </Link>
+            <Link
+              to="/app/consultation/video"
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50 sm:w-auto"
+            >
+              {tr('Join Video Consultation')}
+            </Link>
+            <Link
+              to="/app/profile"
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50 sm:w-auto"
+            >
+              {tr('Update Profile')}
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -343,7 +347,7 @@ export default function DashboardPage() {
             {tr('Consult a Doctor')}
           </Link>
           <Link
-            to="/app/consultation/specialists"
+            to="/app/consultation/doctors?kind=specialist"
             className="w-full rounded-xl bg-white/20 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-white/30 sm:w-auto"
           >
             {tr('Consult Specialist Doctor')}

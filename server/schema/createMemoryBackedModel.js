@@ -200,6 +200,14 @@ export function createMemoryBackedModel(modelName, definition) {
       return originalSave.apply(this, args);
     };
 
+    const originalDelete = DynamoModel.prototype.delete;
+    if (typeof originalDelete === 'function') {
+      DynamoModel.prototype.delete = async function patchedDelete(...args) {
+        await ensureModelInitialized();
+        return originalDelete.apply(this, args);
+      };
+    }
+
     return DynamoModel;
   }
 
@@ -275,6 +283,16 @@ export function createMemoryBackedModel(modelName, definition) {
       memoryStore.set(this.id, this);
       persistLocalStoreRecords(modelName, memoryStore);
       return this;
+    }
+
+    async delete() {
+      if (!this.id) {
+        return null;
+      }
+
+      memoryStore.delete(this.id);
+      persistLocalStoreRecords(modelName, memoryStore);
+      return null;
     }
   }
 

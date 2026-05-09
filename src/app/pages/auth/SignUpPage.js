@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -28,6 +28,61 @@ const DOCTOR_TITLE_OPTIONS = [
 
 function normalizeDoctorTitle(value = '') {
   return DOCTOR_TITLE_OPTIONS.includes(value) ? value : '';
+}
+
+function inferSpecialistFromTitle(value = '') {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  return normalized.includes('consultant') || normalized.includes('specialist');
+}
+
+function SpecialistToggle({ checked, onChange, tr }) {
+  const inputId = useId();
+
+  return (
+    <div
+      role="checkbox"
+      aria-checked={checked}
+      tabIndex={0}
+      onClick={() => onChange(!checked)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onChange(!checked);
+        }
+      }}
+      className="relative z-10 flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-slate-300 hover:bg-white"
+      style={{
+        borderColor: '#cbd5e1',
+        backgroundColor: '#f8fafc',
+      }}
+    >
+      <input
+        id={inputId}
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        onClick={(event) => event.stopPropagation()}
+        className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer rounded border-slate-300"
+        style={{ accentColor: '#0f172a' }}
+      />
+      <label
+        htmlFor={inputId}
+        className="block cursor-pointer"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <span className="block text-sm font-semibold text-slate-900">
+          {tr('I mainly offer specialist care')}
+        </span>
+        <span className="mt-1 block text-sm text-slate-500">
+          {tr(
+            'Turn this on if patients should discover this doctor account under specialists.',
+          )}
+        </span>
+      </label>
+    </div>
+  );
 }
 
 const CONTENT = {
@@ -72,6 +127,10 @@ export default function SignUpPage({ accountType = 'patient' }) {
       email: draft.email || rememberedUser.email || '',
       title: normalizeDoctorTitle(draft.title),
       specialty: draft.specialty || '',
+      isSpecialist:
+        typeof draft.isSpecialist === 'boolean'
+          ? draft.isSpecialist
+          : inferSpecialistFromTitle(draft.title),
       password: '',
       confirmPassword: '',
     };
@@ -89,8 +148,16 @@ export default function SignUpPage({ accountType = 'patient' }) {
       email: form.email,
       title: form.title,
       specialty: form.specialty,
+      isSpecialist: form.isSpecialist,
     });
-  }, [activeAccountType, form.email, form.name, form.specialty, form.title]);
+  }, [
+    activeAccountType,
+    form.email,
+    form.isSpecialist,
+    form.name,
+    form.specialty,
+    form.title,
+  ]);
 
   const onSubmit = async (event) => {
     event.preventDefault();
@@ -135,6 +202,7 @@ export default function SignUpPage({ accountType = 'patient' }) {
         accountType: activeAccountType,
         title: form.title.trim(),
         specialty: form.specialty.trim(),
+        isSpecialist: form.isSpecialist,
         password: form.password,
       });
       clearStoredFormDraft(`signup_${activeAccountType}`);
@@ -163,7 +231,7 @@ export default function SignUpPage({ accountType = 'patient' }) {
           {tr('Already have an account?')}{' '}
           <Link
             to={getAuthRoute(activeAccountType, 'signin')}
-            className="font-semibold text-sky-700 transition hover:text-cyan-600"
+            className="font-semibold text-cyan-600 transition hover:text-cyan-700"
           >
             {tr('Sign In')}
           </Link>
@@ -207,7 +275,15 @@ export default function SignUpPage({ accountType = 'patient' }) {
               </span>
               <select
                 value={form.title}
-                onChange={onChange('title')}
+                onChange={(event) => {
+                  const nextTitle = event.target.value;
+                  setForm((prev) => ({
+                    ...prev,
+                    title: nextTitle,
+                    isSpecialist:
+                      prev.isSpecialist || inferSpecialistFromTitle(nextTitle),
+                  }));
+                }}
                 className="mt-1.5 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100"
               >
                 <option value="">{tr('Select professional title')}</option>
@@ -231,6 +307,17 @@ export default function SignUpPage({ accountType = 'patient' }) {
                 placeholder={tr('General Medicine')}
               />
             </label>
+
+            <SpecialistToggle
+              checked={form.isSpecialist}
+              onChange={(nextChecked) =>
+                setForm((prev) => ({
+                  ...prev,
+                  isSpecialist: nextChecked,
+                }))
+              }
+              tr={tr}
+            />
           </>
         )}
 

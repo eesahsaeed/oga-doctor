@@ -9,6 +9,8 @@ import {
   isOnboardingDone,
   saveStoredFormDraft,
 } from '../../lib/session';
+import { isDoctorUser } from '../../lib/account';
+import DoctorOnboardingPage from './DoctorOnboardingPage';
 
 const defaultForm = {
   language: 'en',
@@ -26,16 +28,22 @@ export default function OnboardingPage() {
   const navigate = useNavigate();
   const { user, refreshProfile } = useAuth();
   const { tr, languages, setLanguage } = useLanguage();
+  const isDoctor = isDoctorUser(user);
 
   const [form, setForm] = useState(() => ({
     ...defaultForm,
     ...(user?.onboarding || {}),
     ...getStoredFormDraft('onboarding', {}),
   }));
-  const [saving, setSaving] = useState(false);
+  const [submittingMode, setSubmittingMode] = useState('');
   const [error, setError] = useState('');
 
   const done = useMemo(() => isOnboardingDone(user), [user]);
+  const isBusy = Boolean(submittingMode);
+
+  if (isDoctor) {
+    return <DoctorOnboardingPage />;
+  }
 
   const onChange = (field) => (event) => {
     const value =
@@ -52,15 +60,15 @@ export default function OnboardingPage() {
     saveStoredFormDraft('onboarding', form);
   }, [form]);
 
-  const onSubmit = async (event) => {
-    event.preventDefault();
-    setSaving(true);
+  const persistOnboarding = async ({ skip = false } = {}) => {
+    setSubmittingMode(skip ? 'skip' : 'save');
     setError('');
 
     try {
       await apiClient.saveOnboarding({
         ...form,
         onboardingCompleted: true,
+        onboardingSkipped: skip,
       });
       clearStoredFormDraft('onboarding');
       await refreshProfile();
@@ -70,8 +78,21 @@ export default function OnboardingPage() {
         submitError.message || tr('Unable to save onboarding right now.'),
       );
     } finally {
-      setSaving(false);
+      setSubmittingMode('');
     }
+  };
+
+  const onSubmit = async (event) => {
+    event.preventDefault();
+    await persistOnboarding({ skip: false });
+  };
+
+  const onSkip = async () => {
+    if (isBusy) {
+      return;
+    }
+
+    await persistOnboarding({ skip: true });
   };
 
   return (
@@ -238,17 +259,20 @@ export default function OnboardingPage() {
           <div className="sm:col-span-2 flex items-center justify-end gap-2">
             <button
               type="button"
-              onClick={() => navigate('/app/dashboard')}
-              className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              onClick={() => void onSkip()}
+              disabled={isBusy}
+              className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {tr('Skip for now')}
+              {submittingMode === 'skip' ? tr('Saving...') : tr('Skip for now')}
             </button>
             <button
               type="submit"
-              disabled={saving}
+              disabled={isBusy}
               className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
             >
-              {saving ? tr('Saving...') : tr('Save & Continue')}
+              {submittingMode === 'save'
+                ? tr('Saving...')
+                : tr('Save & Continue')}
             </button>
           </div>
         </form>

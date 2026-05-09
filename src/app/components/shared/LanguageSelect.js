@@ -26,6 +26,9 @@ export default function LanguageSelect({
   buttonClassName = '',
   menuClassName = '',
   itemClassName = '',
+  labelMode = 'native',
+  iconOnlyOnMobile = false,
+  mobileIcon = null,
 }) {
   const { language, languages, setLanguage, tr } = useLanguage();
   const [open, setOpen] = useState(false);
@@ -39,6 +42,10 @@ export default function LanguageSelect({
     () => languages.find((item) => item.code === language) || languages[0],
     [language, languages],
   );
+  const activeLanguageLabel =
+    labelMode === 'code'
+      ? (activeLanguage?.code || 'en').toUpperCase()
+      : activeLanguage?.nativeLabel || activeLanguage?.label || 'English';
 
   useEffect(() => {
     if (variant !== 'menu' || !open) {
@@ -78,7 +85,10 @@ export default function LanguageSelect({
       >
         {showLabel && (
           <span
-            className={labelClassName || 'text-sm font-medium text-slate-700'}
+            className={[
+              labelClassName || 'text-sm font-medium text-slate-700',
+              iconOnlyOnMobile ? 'hidden sm:inline-flex' : '',
+            ].join(' ')}
             style={{ color: forcedBlack }}
           >
             {tr('Language')}
@@ -101,8 +111,16 @@ export default function LanguageSelect({
             WebkitTextFillColor: forcedBlack,
           }}
         >
-          <span style={{ color: forcedBlack }}>
-            {activeLanguage?.nativeLabel || activeLanguage?.label || 'English'}
+          {iconOnlyOnMobile && mobileIcon ? (
+            <span className="sm:hidden" style={{ color: forcedBlack }}>
+              {mobileIcon}
+            </span>
+          ) : null}
+          <span
+            className={iconOnlyOnMobile ? 'hidden sm:inline' : ''}
+            style={{ color: forcedBlack }}
+          >
+            {activeLanguageLabel}
           </span>
           <ChevronIcon
             className={[

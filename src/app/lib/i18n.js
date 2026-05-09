@@ -794,7 +794,6 @@ const TRANSLATIONS = {
     'Talk to Aisha': 'Kwuo okwu na Aisha',
     'Start Health Chat': 'Malite mkparita uka ahuike',
     'Consultation Paths': 'Uzo mkparita uka',
-    'Doctor Messages': 'Ozi Dokita',
     'Our Services': 'Oru anyi',
     'Health Articles': 'Edemede ahuike',
     'See all': 'Lee ha nile',

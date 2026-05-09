@@ -103,7 +103,21 @@ export default function SignInPage({ accountType = 'patient' }) {
 
       navigate(nextRoute, { replace: true });
     } catch (submitError) {
-      setError(submitError.message || tr('Unable to sign in right now.'));
+      if (submitError?.status === 404) {
+        setError(
+          tr(
+            'We could not find an account with that email. Check the address or create a new account.',
+          ),
+        );
+      } else if (submitError?.status === 401) {
+        setError(
+          tr(
+            'The password you entered is not correct. Check it and try again.',
+          ),
+        );
+      } else {
+        setError(submitError.message || tr('Unable to sign in right now.'));
+      }
     } finally {
       setSubmitting(false);
     }
@@ -123,7 +137,7 @@ export default function SignInPage({ accountType = 'patient' }) {
           {tr('New to OgaDoctor?')}{' '}
           <Link
             to={getAuthRoute(activeAccountType, 'signup')}
-            className="font-semibold text-sky-700 transition hover:text-cyan-600"
+            className="font-semibold text-cyan-600 transition hover:text-cyan-700"
           >
             {tr('Create Account')}
           </Link>
@@ -164,7 +178,7 @@ export default function SignInPage({ accountType = 'patient' }) {
         <div className="flex justify-end">
           <Link
             to="/auth/forgot-password"
-            className="text-sm font-medium text-blue-600 hover:text-blue-700"
+            className="text-sm font-medium text-cyan-600 transition hover:text-cyan-700"
             state={{ accountType: activeAccountType }}
           >
             {tr('Forgot password?')}

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { apiClient } from '../lib/api';
-import { saveSession } from '../lib/session';
+import { getStoredUser, saveSession } from '../lib/session';
 import {
   SUPPORTED_LANGUAGES,
   detectBrowserLanguage,
@@ -41,10 +41,25 @@ export function LanguageProvider({ children }) {
 
   const updateLanguage = async (nextLanguageInput) => {
     const nextLanguage = normalizeLanguage(nextLanguageInput);
+    const fallbackUser = user || getStoredUser();
+    const mergedLocalUser = fallbackUser
+      ? {
+          ...fallbackUser,
+          onboarding: {
+            ...(fallbackUser.onboarding || {}),
+            language: nextLanguage,
+          },
+        }
+      : null;
+
     setLanguageState(nextLanguage);
     saveStoredLanguage(nextLanguage);
+    if (token && mergedLocalUser) {
+      setUser(mergedLocalUser);
+      saveSession({ token, user: mergedLocalUser });
+    }
 
-    if (!token || !user) {
+    if (!token) {
       return nextLanguage;
     }
 
@@ -55,16 +70,9 @@ export function LanguageProvider({ children }) {
       if (payload?.success && payload.user) {
         setUser(payload.user);
         saveSession({ token, user: payload.user });
-      } else if (user) {
-        const mergedUser = {
-          ...user,
-          onboarding: {
-            ...(user.onboarding || {}),
-            language: nextLanguage,
-          },
-        };
-        setUser(mergedUser);
-        saveSession({ token, user: mergedUser });
+      } else if (mergedLocalUser) {
+        setUser(mergedLocalUser);
+        saveSession({ token, user: mergedLocalUser });
       }
     } catch (_error) {
       // keep local language selection even when backend sync fails

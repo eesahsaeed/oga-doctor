@@ -1,5 +1,18 @@
-import { Button, Typography } from '@material-tailwind/react';
+import { Typography } from '@material-tailwind/react';
 import { useLanguage } from '../context/LanguageContext';
+
+const APP_LINKS = [
+  {
+    label: 'App Store',
+    icon: '/logos/logo-apple.png',
+    href: 'https://apps.apple.com/ng/app/ogadoctor',
+  },
+  {
+    label: 'Google Play',
+    icon: '/logos/logo-google.png',
+    href: 'https://play.google.com/store/apps/details?id=com.ogadoctor.app',
+  },
+];
 
 function Hero() {
   const { tr } = useLanguage();
@@ -30,30 +43,29 @@ function Hero() {
               )}
             </Typography>
             <div className="flex flex-col gap-2 md:mb-2 md:w-10/12 md:flex-row">
-              <Button
-                size="lg"
-                color="white"
-                className="flex w-full items-center justify-center gap-3 md:w-auto"
-              >
-                <img
-                  src="/logos/logo-apple.png"
-                  alt={tr('App Store')}
-                  className="w-6 h-6"
-                />
-                {tr('App Store')}
-              </Button>
-              <Button
-                size="lg"
-                color="white"
-                className="flex w-full items-center justify-center gap-3 md:w-auto"
-              >
-                <img
-                  src="/logos/logo-google.png"
-                  alt={tr('Google Play')}
-                  className="w-6 h-6"
-                />
-                {tr('Google Play')}
-              </Button>
+              {APP_LINKS.map((link) => (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex w-full items-center justify-center gap-3 rounded-2xl border px-5 py-3 text-sm font-semibold transition-transform hover:-translate-y-0.5 md:w-auto"
+                  style={{
+                    color: '#0f172a',
+                    borderColor: '#e2e8f0',
+                    backgroundColor: '#ffffff',
+                    boxShadow:
+                      '0 10px 24px rgba(15, 23, 42, 0.18), 0 4px 10px rgba(15, 23, 42, 0.1)',
+                  }}
+                >
+                  <img
+                    src={link.icon}
+                    alt={tr(link.label)}
+                    className="h-6 w-6"
+                  />
+                  <span style={{ color: '#0f172a' }}>{tr(link.label)}</span>
+                </a>
+              ))}
             </div>
           </div>
           <div

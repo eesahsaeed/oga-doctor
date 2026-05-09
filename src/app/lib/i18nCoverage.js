@@ -33,8 +33,13 @@ export const I18N_COVERAGE_TRANSLATIONS = {
       'Kana da tambayoyi? Muna da bayyanannun amsoshi. Samu taimako cikin sauri game da yadda OgaDoctor ke aiki, biyan kudi, likitoci, tsare sirri, da sauransu.',
     'If an account with that email exists, a password reset link has been sent.':
       'Idan akwai asusu da wannan imel din, an aika hanyar sake saita kalmar sirri.',
+    'We could not find an account with that email. Check the address or create a new account.':
+      'Ba mu sami asusu da wannan imel ba. Duba adireshin ko ka kirkiro sabon asusu.',
     Join: 'Shiga',
     'Joining...': 'Ana shiga...',
+    'Close menu': 'Rufe menu',
+    'Choose the language you want to use across your dashboard.':
+      'Zabi harshen da kake son amfani da shi a duk fadin dashboard dinka.',
     Languages: 'Harsuna',
     "Let's set up your care profile": 'Mu saita bayanan kulawarka',
     'License number': 'Lambar lasisi',
@@ -43,16 +48,21 @@ export const I18N_COVERAGE_TRANSLATIONS = {
     'Lower Hand': 'Sauke hannu',
     'Manage your doctor identity, patient-facing availability, and practice details.':
       'Sarrafa bayanan likitanka, samuwar da marasa lafiya za su gani, da cikakkun bayanan aikinka.',
-    'Messages are delivered directly to {doctor}. Expected response: {response}.':
-      'Ana kai sakonni kai tsaye zuwa {doctor}. Amsar da ake tsammani: {response}.',
     'Microphone enabled.': 'An kunna makirufo.',
     'Microphone muted.': 'An kashe sautin makirufo.',
     'New Room': 'Sabon daki',
     'No email available': 'Babu imel',
     'No patient chats yet. Once a patient starts a doctor chat, it will show up here.':
       'Babu hirar marasa lafiya tukuna. Da zarar mara lafiya ya fara hirar likita, za ta bayyana a nan.',
+    Navigation: 'Kewayawa',
     'No patient chats yet. Once patients start direct consultations, they will appear here.':
       'Babu hirar marasa lafiya tukuna. Da zarar marasa lafiya sun fara shawarwari kai tsaye, za su bayyana a nan.',
+    'Open menu': 'Bude menu',
+    'Your patient inbox will appear here':
+      'Akwatin sakonnin marasa lafiyarka zai bayyana a nan',
+    'As patients open direct chats, you will be able to continue the thread from this workspace.':
+      'Yayin da marasa lafiya ke bude hirar kai tsaye, za ka iya ci gaba da zaren hirar daga wannan filin aiki.',
+    'Patient Messages': 'Sakonnin marasa lafiya',
     'Open Patient Messages': 'Bude sakonnin marasa lafiya',
     'Open this conversation to review the latest message.':
       'Bude wannan hirar domin duba sabon sako.',
@@ -164,8 +174,13 @@ export const I18N_COVERAGE_TRANSLATIONS = {
       "Got questions? We've got clear answers. Find quick help about how OgaDoctor works, payments, doctors, privacy, and more.",
     'If an account with that email exists, a password reset link has been sent.':
       'If an account with that email exists, a password reset link has been sent.',
+    'We could not find an account with that email. Check the address or create a new account.':
+      'Anyi ahughi akauntu nwere email a. Lelee adresi ahu ma obu meputa akauntu ohuru.',
     Join: 'Join',
     'Joining...': 'Joining...',
+    'Close menu': 'Mechie menu',
+    'Choose the language you want to use across your dashboard.':
+      "Horo asusu gi n'ofe dashboard a n'asusu i choro iji.",
     Languages: 'Languages',
     "Let's set up your care profile": "Let's set up your care profile",
     'License number': 'License number',
@@ -174,16 +189,21 @@ export const I18N_COVERAGE_TRANSLATIONS = {
     'Lower Hand': 'Lower Hand',
     'Manage your doctor identity, patient-facing availability, and practice details.':
       'Manage your doctor identity, patient-facing availability, and practice details.',
-    'Messages are delivered directly to {doctor}. Expected response: {response}.':
-      'Messages are delivered directly to {doctor}. Expected response: {response}.',
     'Microphone enabled.': 'Microphone enabled.',
     'Microphone muted.': 'Microphone muted.',
     'New Room': 'New Room',
     'No email available': 'No email available',
     'No patient chats yet. Once a patient starts a doctor chat, it will show up here.':
       'No patient chats yet. Once a patient starts a doctor chat, it will show up here.',
+    Navigation: 'Navigation',
     'No patient chats yet. Once patients start direct consultations, they will appear here.':
       'No patient chats yet. Once patients start direct consultations, they will appear here.',
+    'Open menu': 'Mepee menu',
+    'Your patient inbox will appear here':
+      'Igbe ozi ndi oria gi ga-aputa ebe a',
+    'As patients open direct chats, you will be able to continue the thread from this workspace.':
+      'Ka ndi oria na-emeghe nkata ozugbo, i ga-enwe ike iga nihu na eri okwu a site na ebe oru a.',
+    'Patient Messages': 'Ozi ndi oria',
     'Open Patient Messages': 'Open Patient Messages',
     'Open this conversation to review the latest message.':
       'Open this conversation to review the latest message.',
@@ -294,8 +314,13 @@ export const I18N_COVERAGE_TRANSLATIONS = {
       'O ni ibeere? A ni idahun kedere. Ri iranlowo kiakia nipa bi OgaDoctor se n sise, isanwo, awon dokita, asiri, ati bee bee lo.',
     'If an account with that email exists, a password reset link has been sent.':
       'Ti akanti kan ba wa pelu imeeli yen, a ti fi ona atunse oro asina ranse.',
+    'We could not find an account with that email. Check the address or create a new account.':
+      'A ko ri akanti kankan pelu imeeli yen. Ye adresi naa wo tabi da akanti tuntun sile.',
     Join: 'Darapo',
     'Joining...': 'N darapo...',
+    'Close menu': 'Pa menu mo',
+    'Choose the language you want to use across your dashboard.':
+      'Yan ede ti o fe lo kaakiri dashboard re.',
     Languages: 'Awon ede',
     "Let's set up your care profile": 'Je ka seto profaili itoju re',
     'License number': 'Nomba iwe a??',
@@ -304,16 +329,20 @@ export const I18N_COVERAGE_TRANSLATIONS = {
     'Lower Hand': 'So owo kale',
     'Manage your doctor identity, patient-facing availability, and practice details.':
       'Se amojuto idanimo dokita re, bi awon alaisan se le ri e, ati alaye ise re.',
-    'Messages are delivered directly to {doctor}. Expected response: {response}.':
-      'A n fi ifiranse ranse taara si {doctor}. Idahun ti a n reti ni {response}.',
     'Microphone enabled.': 'A ti tan microphone.',
     'Microphone muted.': 'A ti pa ohun microphone.',
     'New Room': 'Yara tuntun',
     'No email available': 'Ko si imeeli',
     'No patient chats yet. Once a patient starts a doctor chat, it will show up here.':
       'Ko si iwiregbe alaisan sib?sib?. Nigbati alaisan ba bere iwiregbe dokita, yoo han nibi.',
+    Navigation: 'Lilona',
     'No patient chats yet. Once patients start direct consultations, they will appear here.':
       'Ko si iwiregbe alaisan sib?sib?. Nigbati awon alaisan ba bere ijumoran taara, won yoo han nibi.',
+    'Open menu': 'Si menu',
+    'Your patient inbox will appear here': 'Inbox awon alaisan re yoo han nibi',
+    'As patients open direct chats, you will be able to continue the thread from this workspace.':
+      'Bi awon alaisan se n si iwiregbe taara, o ma le tesiwaju ninu thread naa lati inu aaye ise yi.',
+    'Patient Messages': 'Ifiranse awon alaisan',
     'Open Patient Messages': 'Si awon ifiranse alaisan',
     'Open this conversation to review the latest message.':
       'Si iwiregbe yi lati wo ifiranse to k?hin.',
@@ -422,8 +451,13 @@ export const I18N_COVERAGE_TRANSLATIONS = {
       'You get question? We get clear answer. See quick help about how OgaDoctor dey work, payment, doctor, privacy, and more.',
     'If an account with that email exists, a password reset link has been sent.':
       'If account with that email dey, reset link don send.',
+    'We could not find an account with that email. Check the address or create a new account.':
+      'We no fit find any account with that email. Check the address well or create new account.',
     Join: 'Join',
     'Joining...': 'Dey join...',
+    'Close menu': 'Close menu',
+    'Choose the language you want to use across your dashboard.':
+      'Choose the language wey you wan use for your dashboard.',
     Languages: 'Languages',
     "Let's set up your care profile": 'Make we set your care profile',
     'License number': 'License number',
@@ -432,16 +466,20 @@ export const I18N_COVERAGE_TRANSLATIONS = {
     'Lower Hand': 'Lower hand',
     'Manage your doctor identity, patient-facing availability, and practice details.':
       'Manage your doctor identity, wetin patients go see, and your practice details.',
-    'Messages are delivered directly to {doctor}. Expected response: {response}.':
-      'Message dey go straight to {doctor}. Expected response: {response}.',
     'Microphone enabled.': 'Microphone don on.',
     'Microphone muted.': 'Microphone don mute.',
     'New Room': 'New room',
     'No email available': 'No email available',
     'No patient chats yet. Once a patient starts a doctor chat, it will show up here.':
       'No patient chat yet. Once patient start doctor chat, e go show here.',
+    Navigation: 'Navigation',
     'No patient chats yet. Once patients start direct consultations, they will appear here.':
       'No patient chat yet. Once patients start direct consultation, dem go show here.',
+    'Open menu': 'Open menu',
+    'Your patient inbox will appear here': 'Your patient inbox go show here',
+    'As patients open direct chats, you will be able to continue the thread from this workspace.':
+      'As patients open direct chat, you go fit continue the thread from this workspace.',
+    'Patient Messages': 'Patient messages',
     'Open Patient Messages': 'Open patient messages',
     'Open this conversation to review the latest message.':
       'Open this conversation make you check the latest message.',

@@ -88,6 +88,31 @@ test('forgot password issues a reset token and accepts a new password', async ()
   assert.equal(newSignin.body.success, true);
 });
 
+test('forgot password returns user not found for unknown email', async () => {
+  const missingEmail = `missing-${Date.now()}@example.com`;
+
+  const forgot = await request(app).post('/api/auth/forgot-password').send({
+    email: missingEmail,
+  });
+
+  assert.equal(forgot.status, 404);
+  assert.equal(forgot.body.success, false);
+  assert.equal(forgot.body.message, 'User not found');
+});
+
+test('signin returns user not found for unknown email', async () => {
+  const missingEmail = `signin-missing-${Date.now()}@example.com`;
+
+  const signin = await request(app).post('/api/auth/signin').send({
+    email: missingEmail,
+    password: 'secret123',
+  });
+
+  assert.equal(signin.status, 404);
+  assert.equal(signin.body.success, false);
+  assert.equal(signin.body.message, 'User not found');
+});
+
 test('forgot password migrates a legacy User record into Patient storage', async () => {
   const email = `legacy-forgot-${Date.now()}@example.com`;
   const legacyUser = new LegacyUser({
@@ -186,6 +211,219 @@ test('consultation transcripts can be saved and retrieved', async () => {
   assert.equal(
     fetch.body.transcript.entries[0].text,
     'Good afternoon doctor, I have a headache.',
+  );
+});
+
+test('doctor onboarding can skip image upload and receive a generated avatar', async () => {
+  const email = `doctor-onboarding-${Date.now()}@example.com`;
+  const signup = await request(app).post('/api/auth/signup').send({
+    name: 'Dr Amina Yusuf',
+    email,
+    password: 'secret123',
+    accountType: 'doctor',
+    title: 'Consultant Specialist',
+    specialty: 'Cardiology',
+  });
+
+  assert.equal(signup.status, 201);
+  assert.equal(signup.body.success, true);
+  assert.equal(signup.body.user.onboarding.onboardingCompleted, false);
+
+  const token = signup.body.token;
+  const onboarding = await request(app)
+    .post('/api/auth/onboarding')
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      language: 'en',
+      name: 'Dr Amina Yusuf',
+      title: 'Consultant Cardiologist',
+      specialty: 'Cardiology',
+      bio: 'Cardiology specialist focused on long-term heart health follow-up.',
+      yearsExperience: 8,
+      responseTime: 'Replies in about 10 mins',
+      nextAvailable: 'Today, 4:00 PM',
+      priceLabel: 'From NGN 15,000',
+      status: 'available',
+      languages: ['en', 'ha'],
+      consultationModes: ['doctor_chat', 'video'],
+      profile: {
+        phone: '+2348012345678',
+        practiceAddress: 'Abuja Specialist Centre',
+        licenseNumber: 'MDCN-123456',
+        consultationFocus: 'Hypertension and long-term follow-up',
+      },
+      onboardingCompleted: true,
+    });
+
+  assert.equal(onboarding.status, 200);
+  assert.equal(onboarding.body.success, true);
+  assert.equal(onboarding.body.user.onboarding.onboardingCompleted, true);
+  assert.equal(typeof onboarding.body.user.avatar, 'string');
+  assert.match(onboarding.body.user.avatar, /^data:image\/svg\+xml/);
+});
+
+test('patients can skip onboarding and still enter the workspace later', async () => {
+  const email = `patient-skip-${Date.now()}@example.com`;
+  const signup = await request(app).post('/api/auth/signup').send({
+    name: 'Skip Ready Patient',
+    email,
+    password: 'secret123',
+    accountType: 'patient',
+  });
+
+  assert.equal(signup.status, 201);
+  assert.equal(signup.body.user.onboarding.onboardingCompleted, false);
+
+  const onboarding = await request(app)
+    .post('/api/auth/onboarding')
+    .set('Authorization', `Bearer ${signup.body.token}`)
+    .send({
+      language: 'ha',
+      onboardingCompleted: true,
+      onboardingSkipped: true,
+    });
+
+  assert.equal(onboarding.status, 200);
+  assert.equal(onboarding.body.success, true);
+  assert.equal(onboarding.body.user.onboarding.onboardingCompleted, true);
+  assert.equal(onboarding.body.user.onboarding.onboardingSkipped, true);
+  assert.equal(onboarding.body.user.onboarding.language, 'ha');
+});
+
+test('doctor chats list loads without DynamoDB key-shape errors', async () => {
+  const doctorEmail = `doctor-chat-list-${Date.now()}@example.com`;
+  const patientEmail = `patient-chat-list-${Date.now()}@example.com`;
+
+  const doctorSignup = await request(app).post('/api/auth/signup').send({
+    name: 'Dr Chat Ready',
+    email: doctorEmail,
+    password: 'secret123',
+    accountType: 'doctor',
+    title: 'Consultant Specialist',
+    specialty: 'Cardiology',
+  });
+
+  assert.equal(doctorSignup.status, 201);
+
+  const doctorOnboarding = await request(app)
+    .post('/api/auth/onboarding')
+    .set('Authorization', `Bearer ${doctorSignup.body.token}`)
+    .send({
+      language: 'en',
+      name: 'Dr Chat Ready',
+      title: 'Consultant Specialist',
+      specialty: 'Cardiology',
+      bio: 'Cardiology specialist ready for consultations.',
+      yearsExperience: 7,
+      responseTime: 'Replies in about 12 mins',
+      nextAvailable: 'Today, 5:00 PM',
+      priceLabel: 'From NGN 12,000',
+      status: 'available',
+      languages: ['en'],
+      consultationModes: ['doctor_chat', 'video'],
+      profile: {
+        phone: '+2348011111111',
+        practiceAddress: 'Heart Centre, Abuja',
+        licenseNumber: 'MDCN-654321',
+        consultationFocus: 'Heart care',
+      },
+      onboardingCompleted: true,
+    });
+
+  assert.equal(doctorOnboarding.status, 200);
+
+  const patientSignup = await request(app).post('/api/auth/signup').send({
+    name: 'Patient Chat Ready',
+    email: patientEmail,
+    password: 'secret123',
+    accountType: 'patient',
+  });
+
+  assert.equal(patientSignup.status, 201);
+
+  const chatCreate = await request(app)
+    .post('/api/doctor-chats')
+    .set('Authorization', `Bearer ${patientSignup.body.token}`)
+    .send({
+      doctorId: doctorSignup.body.user.id,
+      subject: 'Need follow-up advice',
+    });
+
+  assert.equal(chatCreate.status, 201);
+
+  const patientList = await request(app)
+    .get('/api/doctor-chats')
+    .set('Authorization', `Bearer ${patientSignup.body.token}`);
+
+  assert.equal(patientList.status, 200);
+  assert.equal(patientList.body.success, true);
+  assert.equal(Array.isArray(patientList.body.chats), true);
+  assert.equal(patientList.body.chats.length > 0, true);
+
+  const doctorList = await request(app)
+    .get('/api/doctor-chats')
+    .set('Authorization', `Bearer ${doctorSignup.body.token}`);
+
+  assert.equal(doctorList.status, 200);
+  assert.equal(doctorList.body.success, true);
+  assert.equal(Array.isArray(doctorList.body.chats), true);
+  assert.equal(doctorList.body.chats.length > 0, true);
+});
+
+test('patients only see doctors with completed profiles and cannot start chats with incomplete ones', async () => {
+  const doctorEmail = `doctor-hidden-${Date.now()}@example.com`;
+  const patientEmail = `patient-visible-${Date.now()}@example.com`;
+
+  const doctorSignup = await request(app).post('/api/auth/signup').send({
+    name: 'Dr Hidden Profile',
+    email: doctorEmail,
+    password: 'secret123',
+    accountType: 'doctor',
+    title: 'Consultant Specialist',
+    specialty: 'Cardiology',
+  });
+
+  assert.equal(doctorSignup.status, 201);
+  assert.equal(doctorSignup.body.success, true);
+  assert.equal(doctorSignup.body.user.onboarding.onboardingCompleted, false);
+
+  const patientSignup = await request(app).post('/api/auth/signup').send({
+    name: 'Patient Viewer',
+    email: patientEmail,
+    password: 'secret123',
+  });
+
+  assert.equal(patientSignup.status, 201);
+  assert.equal(patientSignup.body.success, true);
+
+  const patientToken = patientSignup.body.token;
+
+  const doctorsRes = await request(app)
+    .get('/api/doctors?kind=specialist')
+    .set('Authorization', `Bearer ${patientToken}`);
+
+  assert.equal(doctorsRes.status, 200);
+  assert.equal(doctorsRes.body.success, true);
+  assert.equal(
+    doctorsRes.body.doctors.some(
+      (doctor) => doctor.id === doctorSignup.body.user.id,
+    ),
+    false,
+  );
+
+  const chatRes = await request(app)
+    .post('/api/doctor-chats')
+    .set('Authorization', `Bearer ${patientToken}`)
+    .send({
+      doctorId: doctorSignup.body.user.id,
+      subject: 'Cardiology consultation',
+    });
+
+  assert.equal(chatRes.status, 403);
+  assert.equal(chatRes.body.success, false);
+  assert.equal(
+    chatRes.body.message,
+    'Doctor profile is not available to patients yet.',
   );
 });
 

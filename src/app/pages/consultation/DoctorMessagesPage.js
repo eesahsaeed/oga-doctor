@@ -193,14 +193,8 @@ export default function DoctorMessagesPage() {
       );
     }
 
-    return tr(
-      'Messages are delivered directly to {doctor}. Expected response: {response}.',
-      {
-        doctor: selectedDoctor.name,
-        response: tr(selectedDoctor.responseTime || 'As available'),
-      },
-    );
-  }, [isDoctor, selectedDoctor, selectedParty, tr]);
+    return '';
+  }, [isDoctor, selectedParty, tr]);
 
   const sendMessage = async (event) => {
     event.preventDefault();
@@ -285,7 +279,7 @@ export default function DoctorMessagesPage() {
                     {tr('Consult a Doctor')}
                   </Link>
                   <Link
-                    to="/app/consultation/specialists"
+                    to="/app/consultation/doctors?kind=specialist"
                     className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
                   >
                     {tr('Consult a Specialist')}
@@ -298,6 +292,17 @@ export default function DoctorMessagesPage() {
           {chats.map((chat) => {
             const isSelected = chat.id === selectedChatId;
             const party = isDoctor ? chat.patient : chat.doctor;
+            const metaLabel = tr(
+              isDoctor
+                ? party?.email || chat.subject || 'Consultation'
+                : chat.doctor?.specialty || chat.subject || 'Consultation',
+            );
+            const previewText =
+              getDoctorChatDisplayText(chat.lastMessage, translatedTextMap) ||
+              tr('Open this chat to continue.');
+            const compactPreview = metaLabel
+              ? `${metaLabel} - ${previewText}`
+              : previewText;
 
             return (
               <button
@@ -307,7 +312,7 @@ export default function DoctorMessagesPage() {
                   setSearchParams({ chatId: chat.id }, { replace: false })
                 }
                 className={[
-                  'w-full rounded-2xl border p-4 text-left transition-colors',
+                  'w-full rounded-2xl border p-3.5 text-left transition-colors',
                   isSelected
                     ? 'border-blue-200 bg-blue-50'
                     : 'border-slate-200 bg-white hover:bg-slate-50',
@@ -320,29 +325,19 @@ export default function DoctorMessagesPage() {
                     className="h-12 w-12 rounded-2xl object-cover"
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-slate-900">
-                      {party?.name || tr(isDoctor ? 'Patient' : 'Doctor')}
-                    </p>
-                    <p className="truncate text-xs text-slate-500">
-                      {tr(
-                        isDoctor
-                          ? party?.email || chat.subject || 'Consultation'
-                          : chat.doctor?.specialty ||
-                              chat.subject ||
-                              'Consultation',
-                      )}
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="truncate text-sm font-semibold text-slate-900">
+                        {party?.name || tr(isDoctor ? 'Patient' : 'Doctor')}
+                      </p>
+                      <p className="shrink-0 text-[11px] font-medium text-slate-500">
+                        {formatTimestamp(chat.lastMessageAt, formatDateTime)}
+                      </p>
+                    </div>
+                    <p className="mt-1 truncate text-sm text-slate-600">
+                      {compactPreview}
                     </p>
                   </div>
                 </div>
-                <p className="mt-3 line-clamp-2 text-sm text-slate-600">
-                  {getDoctorChatDisplayText(
-                    chat.lastMessage,
-                    translatedTextMap,
-                  ) || tr('Open this chat to continue.')}
-                </p>
-                <p className="mt-2 text-xs text-slate-500">
-                  {formatTimestamp(chat.lastMessageAt, formatDateTime)}
-                </p>
               </button>
             );
           })}
@@ -428,9 +423,11 @@ export default function DoctorMessagesPage() {
                 </div>
               </div>
 
-              <p className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                {helperText}
-              </p>
+              {helperText ? (
+                <p className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                  {helperText}
+                </p>
+              ) : null}
             </div>
 
             <div className="flex-1 space-y-4 overflow-y-auto p-5">

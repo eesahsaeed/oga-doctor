@@ -12,7 +12,9 @@ import DoctorChat from '../schema/DoctorChatSchema.js';
 import ConsultationTranscript from '../schema/ConsultationTranscriptSchema.js';
 import LegacyUser from '../schema/UserSchema.js';
 import { JWT_SECRET } from '../helper.js';
+import { uploadDoctorAvatarToBackblaze } from '../services/backblazeB2.js';
 import { isMailerConfigured, sendMail } from '../services/mailer.js';
+import { buildNameAvatarDataUrl } from '../services/nameAvatar.js';
 import {
   buildDoctorGreetingMessage,
   buildHealthSystemPrompt,
@@ -56,6 +58,16 @@ function normalizeRoomName(rawValue = '') {
     .replace(/-+/g, '-')
     .slice(0, 80);
   return cleaned;
+}
+
+const DEV_DATABASE_RESET_CONFIRMATION = 'CLEAR OGADOCTOR DATA';
+
+function allowProductionDatabaseClear() {
+  return (
+    String(process.env.ALLOW_PROD_DB_CLEAR || '')
+      .trim()
+      .toLowerCase() === 'true'
+  );
 }
 
 const DEFAULT_DOCTORS = [
@@ -670,12 +682,73 @@ function defaultDoctorProfile() {
 function defaultDoctorOnboarding(language = 'en') {
   return {
     language: normalizeLanguage(language),
-    onboardingCompleted: true,
+    onboardingCompleted: false,
   };
 }
 
 function toOptionalString(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function doctorLanguageDisplayName(value = '') {
+  const normalized = normalizeLanguage(value);
+
+  if (normalized === 'ha') return 'Hausa';
+  if (normalized === 'ig') return 'Igbo';
+  if (normalized === 'yo') return 'Yoruba';
+  if (normalized === 'pcm') return 'Pidgin';
+  return normalized === 'en' ? 'English' : toOptionalString(value);
+}
+
+function normalizeDoctorLanguageList(input = [], fallbackLanguage = 'en') {
+  const rawValues = Array.isArray(input)
+    ? input
+    : typeof input === 'string'
+      ? input.split(',')
+      : [];
+
+  const nextValues = rawValues
+    .map((entry) => doctorLanguageDisplayName(entry))
+    .filter(Boolean);
+
+  if (nextValues.length === 0) {
+    const fallbackLabel = doctorLanguageDisplayName(fallbackLanguage);
+    if (fallbackLabel) {
+      nextValues.push(fallbackLabel);
+    }
+  }
+
+  return [...new Set(nextValues)];
+}
+
+function normalizeDoctorConsultationModes(input = [], fallback = []) {
+  const rawValues = Array.isArray(input)
+    ? input
+    : typeof input === 'string'
+      ? input.split(',')
+      : [];
+
+  const normalized = rawValues
+    .map((entry) => toOptionalString(entry).toLowerCase().replace(/\s+/g, '_'))
+    .filter(Boolean);
+
+  if (normalized.length > 0) {
+    return [...new Set(normalized)];
+  }
+
+  return Array.isArray(fallback) ? [...new Set(fallback.filter(Boolean))] : [];
+}
+
+function normalizeDoctorStatus(value = '', fallback = 'available') {
+  const normalized = toOptionalString(value).toLowerCase();
+  if (
+    normalized === 'available' ||
+    normalized === 'busy' ||
+    normalized === 'offline'
+  ) {
+    return normalized;
+  }
+  return fallback;
 }
 
 function sanitizeProfilePayload(input = {}) {
@@ -701,6 +774,33 @@ function sanitizeDoctorProfilePayload(input = {}) {
     licenseNumber: toOptionalString(input.licenseNumber),
     consultationFocus: toOptionalString(input.consultationFocus),
   };
+}
+
+function isInlineImageDataUrl(value = '') {
+  return /^data:image\//i.test(String(value || '').trim());
+}
+
+function resolveDoctorAvatarValue({
+  avatar,
+  name,
+  fallbackAvatar = '',
+  allowGeneratedFallback = true,
+} = {}) {
+  const nextAvatar = toOptionalString(avatar);
+  if (nextAvatar) {
+    return nextAvatar;
+  }
+
+  const currentAvatar = toOptionalString(fallbackAvatar);
+  if (currentAvatar && !isInlineImageDataUrl(currentAvatar)) {
+    return currentAvatar;
+  }
+
+  if (!allowGeneratedFallback) {
+    return currentAvatar;
+  }
+
+  return buildNameAvatarDataUrl(name || 'Doctor');
 }
 
 function getSafePatientSummary(patient) {
@@ -732,6 +832,40 @@ function getSafeDoctor(doctor) {
     avatar: doctor.avatar || '',
     priceLabel: doctor.priceLabel || '',
   };
+}
+
+function isDoctorProfileVisibleToPatients(doctor) {
+  if (!doctor) {
+    return false;
+  }
+
+  if (doctor?.onboarding?.onboardingCompleted === false) {
+    return false;
+  }
+
+  const profile = doctor.profile || {};
+  const hasCoreIdentity =
+    Boolean(toOptionalString(doctor.name)) &&
+    Boolean(toOptionalString(doctor.title)) &&
+    Boolean(toOptionalString(doctor.specialty)) &&
+    Boolean(toOptionalString(doctor.bio));
+  const hasPracticeDetails =
+    Boolean(toOptionalString(profile.phone)) &&
+    Boolean(toOptionalString(profile.practiceAddress)) &&
+    Boolean(toOptionalString(profile.licenseNumber));
+  const hasLanguages =
+    Array.isArray(doctor.languages) &&
+    doctor.languages.filter(Boolean).length > 0;
+  const hasConsultationModes =
+    Array.isArray(doctor.consultationModes) &&
+    doctor.consultationModes.filter(Boolean).length > 0;
+
+  return (
+    hasCoreIdentity &&
+    hasPracticeDetails &&
+    hasLanguages &&
+    hasConsultationModes
+  );
 }
 
 async function ensureDoctorsSeeded() {
@@ -767,7 +901,12 @@ async function findDoctorById(doctorId) {
 }
 
 async function findPatientById(patientId) {
-  return Patient.get(patientId);
+  if (!patientId) {
+    return null;
+  }
+
+  const patients = await scanModelByField(Patient, 'id', patientId);
+  return patients[0] || null;
 }
 
 function buildDoctorGreeting(doctor, language = 'en') {
@@ -842,7 +981,17 @@ async function buildDoctorChatPayloads(chats = []) {
     ...new Set(chatList.map((chat) => chat.patientId).filter(Boolean)),
   ];
   const patients = await Promise.all(
-    patientIds.map((patientId) => findPatientById(patientId)),
+    patientIds.map(async (patientId) => {
+      try {
+        return await findPatientById(patientId);
+      } catch (error) {
+        console.error(
+          `Doctor chat patient lookup failed for ${patientId}:`,
+          error,
+        );
+        return null;
+      }
+    }),
   );
   const patientMap = new Map(
     patients.filter(Boolean).map((patient) => [patient.id, patient]),
@@ -1145,6 +1294,19 @@ function normalizeAccountType(rawValue = '', fallback = 'patient') {
   return fallback;
 }
 
+async function clearModelRecords(Model) {
+  const records = await Model.scan().exec();
+  const items = Array.isArray(records) ? records : [];
+
+  for (const record of items) {
+    if (record && typeof record.delete === 'function') {
+      await record.delete();
+    }
+  }
+
+  return items.length;
+}
+
 function isDoctorAccount(userOrAccountType) {
   if (typeof userOrAccountType === 'string') {
     return normalizeAccountType(userOrAccountType, 'patient') === 'doctor';
@@ -1385,7 +1547,7 @@ async function hydrateDoctorUser(user) {
     user.onboarding = {
       ...defaultDoctorOnboarding(user.onboarding.language),
       ...user.onboarding,
-      onboardingCompleted: true,
+      onboardingCompleted: Boolean(user.onboarding.onboardingCompleted),
       language: normalizeLanguage(user.onboarding.language),
     };
   }
@@ -1601,6 +1763,49 @@ function isAwsCredentialError(error) {
   );
 }
 
+function isTimeoutError(error) {
+  const name = String(error?.name || '')
+    .trim()
+    .toLowerCase();
+  const code = String(error?.code || '')
+    .trim()
+    .toLowerCase();
+  const message = String(error?.message || '')
+    .trim()
+    .toLowerCase();
+
+  return (
+    code === 'etimedout' ||
+    code === 'request_timeout' ||
+    code === 'timeouterror' ||
+    name.includes('timeout') ||
+    message.includes('timed out') ||
+    message.includes('timeout')
+  );
+}
+
+function buildInformativeRouteFallback(fallbackMessage = '') {
+  const normalized = String(fallbackMessage || '').trim();
+  if (!normalized) {
+    return 'We could not complete this request right now. Please try again. If it keeps happening, check the backend logs and service configuration.';
+  }
+
+  if (normalized === 'Server error. Please try again later.') {
+    return 'We could not complete this request right now. Please try again. If it keeps happening, check the backend logs and service configuration.';
+  }
+
+  if (/^failed to /i.test(normalized)) {
+    const action = normalized.replace(/^failed to /i, '').trim();
+    return `We could not ${action} right now. Please try again. If it keeps happening, check the backend logs and service configuration.`;
+  }
+
+  if (/^unable to /i.test(normalized)) {
+    return `${normalized} Please try again in a moment.`;
+  }
+
+  return `${normalized} Please try again in a moment.`;
+}
+
 function sendRouteError(
   res,
   error,
@@ -1614,7 +1819,26 @@ function sendRouteError(
     });
   }
 
-  return res.status(500).json({ success: false, message: fallbackMessage });
+  if (isDynamoResourceNotFoundError(error)) {
+    return res.status(503).json({
+      success: false,
+      message:
+        'Database tables are missing or not initialized. Connect the backend to the correct DynamoDB tables and try again.',
+    });
+  }
+
+  if (isTimeoutError(error)) {
+    return res.status(504).json({
+      success: false,
+      message:
+        'The request took too long while contacting a required service. Please try again.',
+    });
+  }
+
+  return res.status(500).json({
+    success: false,
+    message: buildInformativeRouteFallback(fallbackMessage),
+  });
 }
 
 async function getAuthedUser(req) {
@@ -1709,7 +1933,7 @@ router.post(
         newUser.onboarding = {
           ...(claimableDoctor?.onboarding || {}),
           ...defaultDoctorOnboarding(req.body?.language),
-          onboardingCompleted: true,
+          onboardingCompleted: false,
         };
         newUser.profile = {
           ...defaultDoctorProfile(),
@@ -1741,11 +1965,14 @@ router.post(
           toOptionalString(req.body?.bio) || claimableDoctor?.bio || '';
         newUser.languages =
           Array.isArray(req.body?.languages) && req.body.languages.length > 0
-            ? req.body.languages.map(normalizeLanguage).filter(Boolean)
+            ? normalizeDoctorLanguageList(
+                req.body.languages,
+                req.body?.language,
+              )
             : Array.isArray(claimableDoctor?.languages) &&
                 claimableDoctor.languages.length > 0
               ? claimableDoctor.languages
-              : [normalizeLanguage(req.body?.language)];
+              : normalizeDoctorLanguageList([], req.body?.language);
         newUser.consultationModes =
           Array.isArray(claimableDoctor?.consultationModes) &&
           claimableDoctor.consultationModes.length > 0
@@ -1849,23 +2076,42 @@ router.post(
     }
 
     const { email, password } = req.body;
+    const requestedLanguage = getRequestedLanguage(req);
 
     try {
       const accountType = normalizeAccountType(req.body?.accountType, '');
       const normalizedEmail = email.toLowerCase().trim();
       const user = await findUserByEmail(normalizedEmail, accountType);
+      const responseLanguage = normalizeLanguage(
+        requestedLanguage || user?.onboarding?.language || 'en',
+      );
 
-      if (!user || user.authType !== 'EMAIL' || !user.password) {
-        return res
-          .status(401)
-          .json({ success: false, message: 'Invalid email or password' });
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: translateServerText(responseLanguage, 'User not found'),
+        });
+      }
+
+      if (user.authType !== 'EMAIL' || !user.password) {
+        return res.status(401).json({
+          success: false,
+          message: translateServerText(
+            responseLanguage,
+            'Invalid email or password',
+          ),
+        });
       }
 
       const isMatch = await bcrypt.compare(password, user.password);
       if (!isMatch) {
-        return res
-          .status(401)
-          .json({ success: false, message: 'Invalid email or password' });
+        return res.status(401).json({
+          success: false,
+          message: translateServerText(
+            responseLanguage,
+            'Invalid email or password',
+          ),
+        });
       }
 
       await hydrateUser(user);
@@ -1883,7 +2129,7 @@ router.post(
 
       return res.status(200).json({
         success: true,
-        message: 'Sign in successful',
+        message: translateServerText(responseLanguage, 'Sign in successful'),
         token,
         user: getSafeUser(user),
       });
@@ -1916,13 +2162,12 @@ router.post(
       const responseLanguage = normalizeLanguage(
         requestedLanguage || user?.onboarding?.language || 'en',
       );
-      const genericMessage = translateServerText(
-        responseLanguage,
-        'If an account with that email exists, a password reset link has been sent.',
-      );
 
       if (!user || user.authType !== 'EMAIL') {
-        return res.status(200).json({ success: true, message: genericMessage });
+        return res.status(404).json({
+          success: false,
+          message: translateServerText(responseLanguage, 'User not found'),
+        });
       }
 
       const { rawToken, tokenHash, expiresAt } = createPasswordResetToken();
@@ -1965,7 +2210,13 @@ router.post(
         }
       }
 
-      const responseBody = { success: true, message: genericMessage };
+      const responseBody = {
+        success: true,
+        message: translateServerText(
+          responseLanguage,
+          'If an account with that email exists, a password reset link has been sent.',
+        ),
+      };
       if (!isProductionRuntime()) {
         responseBody.debug = {
           resetToken: rawToken,
@@ -2098,6 +2349,89 @@ router.get('/auth/me', authRequired, async (req, res) => {
   }
 });
 
+router.post('/admin/dev/clear-database', authRequired, async (req, res) => {
+  const requestedLanguage = getRequestedLanguage(req);
+  const responseLanguage = normalizeLanguage(requestedLanguage || 'en');
+
+  if (isProductionRuntime() && !allowProductionDatabaseClear()) {
+    return res.status(404).json({
+      success: false,
+      message: translateServerText(responseLanguage, 'Not found'),
+    });
+  }
+
+  const productionRequested =
+    req.body?.production === true ||
+    String(req.body?.production || '')
+      .trim()
+      .toLowerCase() === 'true';
+
+  if (isProductionRuntime() && !productionRequested) {
+    return res.status(400).json({
+      success: false,
+      message: translateServerText(
+        responseLanguage,
+        'Tick the production checkbox before clearing the live app database.',
+      ),
+    });
+  }
+
+  const confirmation = String(
+    req.body?.confirmation || req.headers['x-dev-reset-confirmation'] || '',
+  ).trim();
+
+  if (confirmation !== DEV_DATABASE_RESET_CONFIRMATION) {
+    return res.status(400).json({
+      success: false,
+      message: translateServerText(
+        responseLanguage,
+        isProductionRuntime()
+          ? `Type "${DEV_DATABASE_RESET_CONFIRMATION}" to clear the production app database.`
+          : `Type "${DEV_DATABASE_RESET_CONFIRMATION}" to clear the app database.`,
+      ),
+    });
+  }
+
+  try {
+    const user = await getAuthedUser(req);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: translateServerText(responseLanguage, 'User not found'),
+      });
+    }
+
+    const models = [
+      ['patients', Patient],
+      ['doctors', Doctor],
+      ['doctorChats', DoctorChat],
+      ['consultationTranscripts', ConsultationTranscript],
+      ['legacyUsers', LegacyUser],
+    ];
+
+    const cleared = {};
+    for (const [label, Model] of models) {
+      cleared[label] = await clearModelRecords(Model);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: translateServerText(responseLanguage, 'App database cleared.'),
+      confirmation: DEV_DATABASE_RESET_CONFIRMATION,
+      cleared,
+      environment: isProductionRuntime() ? 'production' : 'development',
+      production: productionRequested,
+      note: translateServerText(
+        responseLanguage,
+        'Seeded sample doctors may reappear the next time the doctor directory seeds defaults.',
+      ),
+    });
+  } catch (error) {
+    console.error('Dev database clear error:', error);
+    return sendRouteError(res, error, 'Failed to clear development database');
+  }
+});
+
 router.put('/auth/profile', authRequired, async (req, res) => {
   try {
     const user = await getAuthedUser(req);
@@ -2135,6 +2469,13 @@ router.put('/auth/profile', authRequired, async (req, res) => {
       user.title = doctorTitle;
       user.specialty = doctorSpecialty;
       user.bio = toOptionalString(req.body?.bio) || user.bio || '';
+      if (typeof req.body?.avatar === 'string') {
+        user.avatar = resolveDoctorAvatarValue({
+          avatar: req.body.avatar,
+          name: user.name || doctorTitle,
+          fallbackAvatar: user.avatar,
+        });
+      }
       if (typeof req.body?.isSpecialist === 'boolean') {
         user.isSpecialist = req.body.isSpecialist;
       } else if (
@@ -2147,14 +2488,16 @@ router.put('/auth/profile', authRequired, async (req, res) => {
         });
       }
       if (Array.isArray(req.body?.languages)) {
-        user.languages = req.body.languages
-          .map(normalizeLanguage)
-          .filter(Boolean);
+        user.languages = normalizeDoctorLanguageList(
+          req.body.languages,
+          user.onboarding?.language,
+        );
       }
       if (Array.isArray(req.body?.consultationModes)) {
-        user.consultationModes = req.body.consultationModes
-          .map((entry) => toOptionalString(entry).toLowerCase())
-          .filter(Boolean);
+        user.consultationModes = normalizeDoctorConsultationModes(
+          req.body.consultationModes,
+          user.consultationModes,
+        );
       }
 
       const yearsExperience = Number(req.body?.yearsExperience);
@@ -2169,7 +2512,7 @@ router.put('/auth/profile', authRequired, async (req, res) => {
         user.nextAvailable = req.body.nextAvailable.trim();
       }
       if (typeof req.body?.status === 'string') {
-        user.status = req.body.status.trim().toLowerCase() || user.status;
+        user.status = normalizeDoctorStatus(req.body.status, user.status);
       }
       if (typeof req.body?.priceLabel === 'string') {
         user.priceLabel = req.body.priceLabel.trim();
@@ -2197,6 +2540,56 @@ router.put('/auth/profile', authRequired, async (req, res) => {
   }
 });
 
+router.post('/doctor/avatar-upload', authRequired, async (req, res) => {
+  try {
+    const user = await getAuthedUser(req);
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: 'User not found' });
+    }
+
+    if (!isDoctorAccount(user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only doctor accounts can upload profile images.',
+      });
+    }
+
+    const imageDataUrl = toOptionalString(req.body?.imageDataUrl);
+    if (!imageDataUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'Profile image is required for upload.',
+      });
+    }
+
+    const upload = await uploadDoctorAvatarToBackblaze({
+      imageDataUrl,
+    });
+    const nextAvatar = resolveDoctorAvatarValue({
+      avatar: upload.url,
+      name: user.name || user.title || 'Doctor',
+      fallbackAvatar: user.avatar,
+    });
+
+    user.avatar = nextAvatar;
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Doctor image uploaded',
+      avatar: nextAvatar,
+      fileName: upload.fileName,
+      fileId: upload.fileId,
+      user: getSafeUser(user),
+    });
+  } catch (error) {
+    console.error('Doctor avatar upload error:', error);
+    return sendRouteError(res, error, 'Failed to upload doctor profile image');
+  }
+});
+
 router.post('/auth/onboarding', authRequired, async (req, res) => {
   try {
     const user = await getAuthedUser(req);
@@ -2207,10 +2600,84 @@ router.post('/auth/onboarding', authRequired, async (req, res) => {
     }
 
     if (isDoctorAccount(user)) {
+      const nextLanguage = normalizeLanguage(req.body?.language);
+      const nextTitle =
+        toOptionalString(req.body?.title) || user.title || 'Doctor';
+      const nextSpecialty =
+        toOptionalString(req.body?.specialty) ||
+        user.specialty ||
+        'General Medicine';
+      const nextProfileInput =
+        req.body?.profile && typeof req.body.profile === 'object'
+          ? req.body.profile
+          : req.body || {};
+
+      if (typeof req.body?.name === 'string' && req.body.name.trim()) {
+        user.name = req.body.name.trim();
+      }
+
+      user.title = nextTitle;
+      user.specialty = nextSpecialty;
+      user.bio = toOptionalString(req.body?.bio) || user.bio || '';
+      if (typeof req.body?.avatar === 'string') {
+        user.avatar = resolveDoctorAvatarValue({
+          avatar: req.body.avatar,
+          name: user.name || nextTitle,
+          fallbackAvatar: user.avatar,
+        });
+      } else if (!toOptionalString(user.avatar)) {
+        user.avatar = buildNameAvatarDataUrl(
+          user.name || nextTitle || 'Doctor',
+        );
+      }
+      if (typeof req.body?.isSpecialist === 'boolean') {
+        user.isSpecialist = req.body.isSpecialist;
+      } else {
+        user.isSpecialist = inferDoctorIsSpecialist({
+          title: nextTitle,
+          specialty: nextSpecialty,
+        });
+      }
+
+      const nextYearsExperience = Number(req.body?.yearsExperience);
+      user.yearsExperience =
+        Number.isFinite(nextYearsExperience) && nextYearsExperience >= 0
+          ? nextYearsExperience
+          : Number(user.yearsExperience || 0);
+      user.responseTime =
+        toOptionalString(req.body?.responseTime) ||
+        user.responseTime ||
+        'Usually responds within 30 minutes';
+      user.nextAvailable =
+        toOptionalString(req.body?.nextAvailable) ||
+        user.nextAvailable ||
+        'Today';
+      user.priceLabel =
+        toOptionalString(req.body?.priceLabel) ||
+        user.priceLabel ||
+        'By consultation';
+      user.status = normalizeDoctorStatus(req.body?.status, user.status);
+      user.languages = normalizeDoctorLanguageList(
+        req.body?.languages,
+        nextLanguage,
+      );
+      user.consultationModes = normalizeDoctorConsultationModes(
+        req.body?.consultationModes,
+        user.consultationModes?.length
+          ? user.consultationModes
+          : ['doctor_chat', 'video'],
+      );
+      user.profile = {
+        ...defaultDoctorProfile(),
+        ...(user.profile || {}),
+        ...sanitizeDoctorProfilePayload(nextProfileInput),
+      };
+
       user.onboarding = {
         ...(user.onboarding || {}),
-        language: normalizeLanguage(req.body?.language),
+        language: nextLanguage,
         onboardingCompleted: true,
+        completedAt: new Date().toISOString(),
       };
       await user.save();
 
@@ -2218,6 +2685,7 @@ router.post('/auth/onboarding', authRequired, async (req, res) => {
         success: true,
         message: 'Doctor onboarding saved',
         onboarding: user.onboarding,
+        user: getSafeUser(user),
       });
     }
 
@@ -2232,9 +2700,11 @@ router.post('/auth/onboarding', authRequired, async (req, res) => {
       isFirstPregnancy = true,
       conditions = '',
       onboardingCompleted = true,
+      onboardingSkipped = false,
     } = req.body || {};
 
     user.onboarding = {
+      ...(user.onboarding || {}),
       language: normalizeLanguage(language),
       gender,
       age,
@@ -2245,6 +2715,10 @@ router.post('/auth/onboarding', authRequired, async (req, res) => {
       isFirstPregnancy,
       conditions,
       onboardingCompleted,
+      onboardingSkipped: Boolean(onboardingSkipped),
+      completedAt: onboardingCompleted
+        ? new Date().toISOString()
+        : user.onboarding?.completedAt,
     };
 
     await user.save();
@@ -2253,6 +2727,7 @@ router.post('/auth/onboarding', authRequired, async (req, res) => {
       success: true,
       message: 'Onboarding saved',
       onboarding: user.onboarding,
+      user: getSafeUser(user),
     });
   } catch (error) {
     console.error('Onboarding save error:', error);
@@ -2276,12 +2751,24 @@ router.patch('/auth/language', authRequired, async (req, res) => {
       ...(user.onboarding || {}),
       language: nextLanguage,
     };
+    if (isDoctorAccount(user)) {
+      user.languages = normalizeDoctorLanguageList(
+        [
+          nextLanguage,
+          ...(Array.isArray(user.languages) ? user.languages : []).filter(
+            (value) => normalizeLanguage(value) !== nextLanguage,
+          ),
+        ],
+        nextLanguage,
+      );
+    }
 
     await user.save();
 
     return res.status(200).json({
       success: true,
       message: 'Language updated',
+      language: nextLanguage,
       user: getSafeUser(user),
     });
   } catch (error) {
@@ -2328,6 +2815,10 @@ router.get('/doctors', authRequired, async (req, res) => {
 
     const doctors = await ensureDoctorsSeeded();
     const filteredDoctors = doctors.filter((doctor) => {
+      if (!isDoctorProfileVisibleToPatients(doctor)) {
+        return false;
+      }
+
       if (kind === 'general' && doctor.isSpecialist) {
         return false;
       }
@@ -2424,6 +2915,13 @@ router.post('/doctor-chats', authRequired, async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Doctor not found',
+      });
+    }
+
+    if (!isDoctorProfileVisibleToPatients(doctor)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Doctor profile is not available to patients yet.',
       });
     }
 

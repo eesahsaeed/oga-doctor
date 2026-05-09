@@ -1,6 +1,6 @@
 import React from 'react';
 import InfoCard from '../components/InfoCard';
-import { Typography, Button } from '@material-tailwind/react';
+import { Typography } from '@material-tailwind/react';
 import { useLanguage } from '../context/LanguageContext';
 
 const STATS = [
@@ -19,6 +19,22 @@ const STATS = [
   {
     title: '4.8/5',
     description: 'User Rating',
+  },
+];
+const APP_LINKS = [
+  {
+    label: 'App Store',
+    icon: '/logos/logo-apple.png',
+    href: 'https://apps.apple.com/ng/app/ogadoctor',
+    backgroundColor: '#2563eb',
+    borderColor: '#1d4ed8',
+  },
+  {
+    label: 'Google Play',
+    icon: '/logos/logo-google.png',
+    href: 'https://play.google.com/store/apps/details?id=com.ogadoctor.app',
+    backgroundColor: '#15803d',
+    borderColor: '#166534',
   },
 ];
 
@@ -75,40 +91,33 @@ export function MobileConvenience() {
               {tr('Get the App')}
             </Typography>
 
-            <Button
-              size="lg"
-              color="blue"
-              className="flex w-full items-center justify-center gap-3 normal-case shadow-md transition-all hover:shadow-lg sm:w-auto"
-              onClick={() =>
-                window.open('https://apps.apple.com/ng/app/ogadoctor', '_blank')
-              }
-            >
-              <img
-                src="/logos/logo-apple.png"
-                alt={tr('Apple App Store')}
-                className="w-7 h-7"
-              />
-              {tr('App Store')}
-            </Button>
-
-            <Button
-              size="lg"
-              color="green"
-              className="flex w-full items-center justify-center gap-3 normal-case shadow-md transition-all hover:shadow-lg sm:w-auto"
-              onClick={() =>
-                window.open(
-                  'https://play.google.com/store/apps/details?id=com.ogadoctor.app',
-                  '_blank',
-                )
-              }
-            >
-              <img
-                src="/logos/logo-google.png"
-                alt={tr('Google Play Store')}
-                className="w-7 h-7"
-              />
-              {tr('Google Play')}
-            </Button>
+            {APP_LINKS.map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                target="_blank"
+                rel="noreferrer"
+                className="flex w-full items-center justify-center gap-3 rounded-2xl border px-5 py-3 text-sm font-semibold transition-transform hover:-translate-y-0.5 sm:w-auto"
+                style={{
+                  color: '#ffffff',
+                  backgroundColor: link.backgroundColor,
+                  borderColor: link.borderColor,
+                  boxShadow:
+                    '0 14px 28px rgba(15, 23, 42, 0.16), 0 4px 12px rgba(15, 23, 42, 0.1)',
+                }}
+              >
+                <img
+                  src={link.icon}
+                  alt={tr(
+                    link.label === 'App Store'
+                      ? 'Apple App Store'
+                      : 'Google Play Store',
+                  )}
+                  className="h-7 w-7"
+                />
+                <span style={{ color: '#ffffff' }}>{tr(link.label)}</span>
+              </a>
+            ))}
           </div>
 
           <Typography variant="small" className="mt-6 text-gray-500">

@@ -38,9 +38,18 @@ export default function ForgotPasswordPage() {
       );
       setDebugLink(payload?.debug?.resetLink || '');
     } catch (requestError) {
-      setError(
-        requestError.message || tr('Unable to start password reset right now.'),
-      );
+      if (requestError?.status === 404) {
+        setError(
+          tr(
+            'We could not find an account with that email. Check the address and try again.',
+          ),
+        );
+      } else {
+        setError(
+          requestError.message ||
+            tr('Unable to start password reset right now.'),
+        );
+      }
     } finally {
       setSubmitting(false);
     }
@@ -57,7 +66,7 @@ export default function ForgotPasswordPage() {
         <p className="text-sm text-slate-600">
           <Link
             to="/auth/signin"
-            className="font-semibold text-sky-700 transition hover:text-cyan-600"
+            className="font-semibold text-cyan-600 transition hover:text-cyan-700"
           >
             {tr('Back to Sign In')}
           </Link>
@@ -89,7 +98,7 @@ export default function ForgotPasswordPage() {
             <p className="font-semibold">{tr('Development reset link')}</p>
             <a
               href={debugLink}
-              className="mt-1 block break-all text-blue-700 underline"
+              className="mt-1 block break-all text-cyan-600 underline transition hover:text-cyan-700"
             >
               {debugLink}
             </a>

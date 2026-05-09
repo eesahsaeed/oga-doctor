@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import {
+  Card,
+  CardBody,
+  Chip,
+  Menu,
+  MenuHandler,
+  MenuItem,
+  MenuList,
+  Typography,
+} from '@material-tailwind/react';
 import { Room, RoomEvent, Track, VideoPresets } from 'livekit-client';
 
 import { useLanguage } from '../../context/LanguageContext';
@@ -504,8 +514,6 @@ export default function VideoConsultationPage() {
   const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
   const transcriptEndRef = useRef(null);
-  const moreMenuRef = useRef(null);
-  const moreToggleRef = useRef(null);
 
   const roomRef = useRef(null);
   const localVideoTrackRef = useRef(null);
@@ -546,7 +554,6 @@ export default function VideoConsultationPage() {
 
   const [hasRemoteStream, setHasRemoteStream] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showMore, setShowMore] = useState(false);
 
   const [activePanel, setActivePanel] = useState('');
   const [chatInput, setChatInput] = useState('');
@@ -606,21 +613,6 @@ export default function VideoConsultationPage() {
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [isFullscreen]);
-
-  useEffect(() => {
-    if (!showMore) return undefined;
-    const onDown = (event) => {
-      const target = event.target;
-      if (
-        moreMenuRef.current?.contains(target) ||
-        moreToggleRef.current?.contains(target)
-      )
-        return;
-      setShowMore(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [showMore]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ block: 'end' });
@@ -982,7 +974,6 @@ export default function VideoConsultationPage() {
     setRaisedHands({});
     setIsHandRaised(false);
     setActivePanel('');
-    setShowMore(false);
     setAutoTranscriptEnabled(false);
     setAutoTranscriptListening(false);
     setAutoTranscriptPreview('');
@@ -1802,155 +1793,208 @@ export default function VideoConsultationPage() {
 
   const joinModal =
     !isConnected && !joinModalDismissed ? (
-      <div className="fixed inset-0 z-[130] h-dvh min-h-dvh w-screen bg-white/92 backdrop-blur-sm">
-        <div className="flex h-full w-full items-center justify-center p-6">
-          <div className="relative w-full max-w-md rounded-2xl border border-blue-200 bg-white p-6 shadow-2xl">
-            <button
-              type="button"
-              onClick={() => setJoinModalDismissed(true)}
-              className="absolute right-3 top-3 rounded-full border border-slate-200 bg-white p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-              aria-label={tr('Close join consultation modal')}
-              title={tr('Close')}
-            >
-              <IconClose />
-            </button>
-            <p className="text-sm font-semibold text-blue-800">
-              {tr('Join video consultation')}
-            </p>
-            <p className="mt-1 text-xs text-slate-600">
-              {tr('Room')}: {roomId}
-            </p>
-            <div className="mt-4 flex items-center justify-center gap-3">
+      <div className="fixed inset-0 z-[130] h-dvh min-h-dvh w-screen bg-slate-950/55 backdrop-blur-sm">
+        <div className="flex h-full w-full items-center justify-center p-4 sm:p-6">
+          <Card className="relative w-full max-w-md border border-slate-200 shadow-2xl">
+            <CardBody className="space-y-4 p-6">
+              <button
+                type="button"
+                onClick={() => setJoinModalDismissed(true)}
+                className="absolute right-3 top-3 inline-flex h-10 w-10 items-center justify-center rounded-full border bg-white shadow-none transition hover:bg-slate-100"
+                style={{
+                  borderColor: '#e2e8f0',
+                  backgroundColor: '#ffffff',
+                  color: '#64748b',
+                }}
+                aria-label={tr('Close join consultation modal')}
+                title={tr('Close')}
+              >
+                <IconClose />
+              </button>
+              <div className="space-y-1">
+                <Typography variant="h5" color="blue-gray">
+                  {tr('Join video consultation')}
+                </Typography>
+                <Typography className="text-sm font-normal text-slate-600">
+                  {tr('Room')}: {roomId}
+                </Typography>
+              </div>
               <button
                 type="button"
                 onClick={() => void joinRoom()}
                 disabled={isJoining}
-                className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-full px-4 py-3 text-sm font-semibold shadow-none transition disabled:cursor-not-allowed disabled:opacity-60"
+                style={{
+                  border: '1px solid #0f172a',
+                  backgroundColor: '#0f172a',
+                  color: '#ffffff',
+                }}
               >
                 {isJoining ? tr('Joining...') : tr('Join Now')}
               </button>
-            </div>
-          </div>
+            </CardBody>
+          </Card>
         </div>
       </div>
     ) : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div ref={audioSinkRef} className="hidden" />
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h1 className="text-2xl font-bold text-slate-900">
-          {tr('Video Consultation')}
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          {tr('Secure one-on-one and group video consultations.')}
-        </p>
-      </section>
+      <Card shadow={false} className="border border-slate-200">
+        <CardBody className="flex flex-col gap-4 p-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-1">
+            <Typography variant="h4" color="blue-gray">
+              {tr('Video Consultation')}
+            </Typography>
+            <Typography className="text-sm font-normal text-slate-600">
+              {tr('Secure one-on-one and group video consultations.')}
+            </Typography>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Chip
+              value={`${tr('Room')}: ${currentRoom}`}
+              className="w-fit rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-700"
+            />
+            <Chip
+              value={`${tr('People')}: ${participants.length}`}
+              className="w-fit rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-700"
+            />
+            <Chip
+              value={`${tr('Status')}: ${isConnected ? tr('Connected') : tr('Idle')}`}
+              className="w-fit rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-700"
+            />
+          </div>
+        </CardBody>
+      </Card>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1.2fr_1fr_auto_auto_auto]">
-          <input
-            value={roomId}
-            onChange={(e) => setRoomId(e.target.value)}
-            className="rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
-            placeholder={tr('Room ID')}
-          />
-          <input
-            value={participantName}
-            onChange={(e) => setParticipantName(e.target.value)}
-            className="rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
-            placeholder={tr('Your name')}
-          />
-          <button
-            type="button"
-            onClick={createRoom}
-            className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-          >
-            {tr('New Room')}
-          </button>
-          <button
-            type="button"
-            onClick={() => void copyRoom()}
-            className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-          >
-            {tr('Copy ID')}
-          </button>
-          {!isConnected ? (
+      <Card shadow={false} className="border border-slate-200">
+        <CardBody className="space-y-4 p-5">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+                {tr('Room ID')}
+              </label>
+              <input
+                value={roomId}
+                onChange={(e) => setRoomId(e.target.value)}
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900"
+                placeholder={tr('Room ID')}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+                {tr('Your name')}
+              </label>
+              <input
+                value={participantName}
+                onChange={(e) => setParticipantName(e.target.value)}
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900"
+                placeholder={tr('Your name')}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[auto_auto_minmax(0,220px)_1fr]">
             <button
               type="button"
-              onClick={() => void joinRoom()}
-              disabled={isJoining}
-              className="rounded-xl bg-blue-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={createRoom}
+              className="rounded-full border px-4 py-3 text-xs font-semibold shadow-none transition hover:bg-slate-50"
+              style={{
+                borderColor: '#cbd5e1',
+                color: '#334155',
+                backgroundColor: '#ffffff',
+              }}
             >
-              {isJoining ? tr('Joining...') : tr('Join Consultation')}
+              {tr('New Room')}
             </button>
-          ) : (
             <button
               type="button"
-              onClick={() => void leaveRoom()}
-              className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-100"
+              onClick={() => void copyRoom()}
+              className="rounded-full border px-4 py-3 text-xs font-semibold shadow-none transition hover:bg-slate-50"
+              style={{
+                borderColor: '#cbd5e1',
+                color: '#334155',
+                backgroundColor: '#ffffff',
+              }}
             >
-              {tr('Leave Room')}
+              {tr('Copy ID')}
             </button>
-          )}
-        </div>
+            <select
+              value={videoQuality}
+              onChange={(e) => void changeQuality(e.target.value)}
+              className="w-full rounded-full border border-slate-300 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900"
+            >
+              {Object.entries(QUALITIES).map(([key, value]) => (
+                <option key={key} value={key}>
+                  {tr(value.label)}
+                </option>
+              ))}
+            </select>
+            {!isConnected ? (
+              <button
+                type="button"
+                onClick={() => void joinRoom()}
+                disabled={isJoining}
+                className="rounded-full px-4 py-3 text-sm font-semibold shadow-none transition disabled:cursor-not-allowed disabled:opacity-60"
+                style={{
+                  border: '1px solid #0f172a',
+                  backgroundColor: '#0f172a',
+                  color: '#ffffff',
+                }}
+              >
+                {isJoining ? tr('Joining...') : tr('Join Consultation')}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void leaveRoom()}
+                className="rounded-full border px-4 py-3 text-sm font-semibold shadow-none transition hover:bg-red-50"
+                style={{
+                  borderColor: '#fca5a5',
+                  backgroundColor: '#ffffff',
+                  color: '#b91c1c',
+                }}
+              >
+                {tr('Leave Room')}
+              </button>
+            )}
+          </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-          <span className="rounded-lg bg-slate-100 px-2 py-1 text-slate-600">
-            {tr('Video')}: {tr('Secure')}
-          </span>
-          <span className="rounded-lg bg-slate-100 px-2 py-1 text-slate-600">
-            {tr('Room')}: {currentRoom}
-          </span>
-          <span className="rounded-lg bg-slate-100 px-2 py-1 text-slate-600">
-            {tr('People')}: {participants.length}
-          </span>
-          <span className="rounded-lg bg-slate-100 px-2 py-1 text-slate-600">
-            {tr('Status')}: {isConnected ? tr('Connected') : tr('Idle')}
-          </span>
-        </div>
+          <div className="space-y-2">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              {status}
+            </div>
+            {error && (
+              <div className="rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                {error}
+              </div>
+            )}
+          </div>
 
-        <div className="mt-3">
-          <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-            {tr('Video Quality')}
-          </label>
-          <select
-            value={videoQuality}
-            onChange={(e) => void changeQuality(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 md:max-w-[260px]"
-          >
-            {Object.entries(QUALITIES).map(([key, value]) => (
-              <option key={key} value={key}>
-                {tr(value.label)}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          onChange={(e) => void shareFile(e)}
-        />
-        <p className="mt-2 text-sm text-slate-600">{status}</p>
-        {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
-      </section>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => void shareFile(e)}
+          />
+        </CardBody>
+      </Card>
 
       <ScreenPortal enabled={isFullscreen}>
         <section
           className={
             isFullscreen
               ? 'fixed inset-0 z-[140] h-dvh min-h-dvh w-screen border-0 bg-black p-0 shadow-none backdrop-blur-sm'
-              : 'rounded-2xl border border-slate-200 bg-slate-950 p-3 shadow-sm'
+              : 'rounded-2xl border border-slate-200 bg-slate-950 p-2 shadow-sm sm:p-3'
           }
         >
           <div
             className={
               isFullscreen
                 ? 'relative h-dvh min-h-dvh w-screen overflow-hidden bg-slate-950/30'
-                : 'relative aspect-video min-h-[280px] overflow-hidden rounded-xl border border-slate-700 bg-slate-900'
+                : 'relative aspect-[4/5] min-h-[360px] overflow-hidden rounded-xl border border-slate-700 bg-slate-900 sm:aspect-video sm:min-h-[280px]'
             }
           >
             <video
@@ -1968,8 +2012,10 @@ export default function VideoConsultationPage() {
             {remoteVideoTiles.length > 0 && (
               <div
                 className={[
-                  'absolute z-20 flex max-w-[calc(100%-5.5rem)] items-start gap-2 overflow-x-auto rounded-xl border border-white/20 bg-black/45 p-2 shadow-lg backdrop-blur-sm',
-                  isFullscreen ? 'left-4 top-4' : 'left-3 top-3',
+                  'absolute z-20 flex items-start gap-2 overflow-x-auto rounded-xl border border-white/20 bg-black/45 p-2 shadow-lg backdrop-blur-sm',
+                  isFullscreen
+                    ? 'left-4 top-4 max-w-[calc(100%-5.5rem)]'
+                    : 'left-2 right-12 top-2 max-w-none sm:left-3 sm:right-auto sm:top-3 sm:max-w-[calc(100%-5.5rem)]',
                 ].join(' ')}
               >
                 {remoteVideoTiles.map((tile) => (
@@ -2026,11 +2072,13 @@ export default function VideoConsultationPage() {
 
             <div
               className={[
-                'absolute left-1/2 -translate-x-1/2 z-20 rounded-full border border-white/20 bg-black/65 px-2.5 py-2 shadow-lg backdrop-blur-sm',
-                isFullscreen ? 'bottom-14' : 'bottom-3',
+                'absolute z-20 border border-white/20 bg-black/65 shadow-lg backdrop-blur-sm',
+                isFullscreen
+                  ? 'bottom-14 left-1/2 -translate-x-1/2 rounded-full px-2.5 py-2'
+                  : 'inset-x-2 bottom-2 rounded-2xl px-2 py-2 sm:bottom-3 sm:left-1/2 sm:right-auto sm:inset-x-auto sm:-translate-x-1/2 sm:rounded-full sm:px-2.5',
               ].join(' ')}
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 overflow-x-auto">
                 <ControlButton
                   title={
                     audioEnabled
@@ -2052,20 +2100,14 @@ export default function VideoConsultationPage() {
                 <ControlButton
                   title={tr('Chat')}
                   active={activePanel === 'chat'}
-                  onClick={() =>
-                    setActivePanel((prev) => (prev === 'chat' ? '' : 'chat'))
-                  }
+                  onClick={() => setActivePanel('chat')}
                 >
                   <IconChat />
                 </ControlButton>
                 <ControlButton
                   title={tr('Transcript')}
                   active={activePanel === 'transcript'}
-                  onClick={() =>
-                    setActivePanel((prev) =>
-                      prev === 'transcript' ? '' : 'transcript',
-                    )
-                  }
+                  onClick={() => setActivePanel('transcript')}
                 >
                   <IconTranscript />
                 </ControlButton>
@@ -2085,434 +2127,436 @@ export default function VideoConsultationPage() {
                 <ControlButton
                   title={tr('People')}
                   active={activePanel === 'people'}
-                  onClick={() =>
-                    setActivePanel((prev) =>
-                      prev === 'people' ? '' : 'people',
-                    )
-                  }
+                  onClick={() => setActivePanel('people')}
                 >
                   <IconPeople />
                 </ControlButton>
-                <ControlButton
-                  title={tr('More Controls')}
-                  onClick={() => setShowMore((prev) => !prev)}
-                  buttonRef={moreToggleRef}
-                >
-                  <IconMore />
-                </ControlButton>
+                <Menu placement="top-end">
+                  <MenuHandler>
+                    <div>
+                      <ControlButton title={tr('More Controls')}>
+                        <IconMore />
+                      </ControlButton>
+                    </div>
+                  </MenuHandler>
+                  <MenuList className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-900 shadow-xl shadow-slate-200/60">
+                    <MenuItem
+                      className="rounded-xl px-3 py-2 text-slate-700 hover:bg-slate-50 focus:bg-slate-50 focus:text-slate-900"
+                      onClick={() => void copyRoom()}
+                    >
+                      {tr('Copy Room ID')}
+                    </MenuItem>
+                    <MenuItem
+                      className="rounded-xl px-3 py-2 text-slate-700 hover:bg-slate-50 focus:bg-slate-50 focus:text-slate-900"
+                      onClick={() => void resendInvite()}
+                    >
+                      {tr('Re-send Invite')}
+                    </MenuItem>
+                    <MenuItem
+                      className="rounded-xl px-3 py-2 text-slate-700 hover:bg-slate-50 focus:bg-slate-50 focus:text-slate-900"
+                      onClick={() => setActivePanel('transcript')}
+                    >
+                      {tr('Open transcript')}
+                    </MenuItem>
+                    <MenuItem
+                      className="rounded-xl px-3 py-2 text-slate-700 hover:bg-slate-50 focus:bg-slate-50 focus:text-slate-900"
+                      onClick={() =>
+                        void persistTranscript({
+                          status: isConnected ? 'active' : 'completed',
+                        })
+                      }
+                    >
+                      {tr('Save transcript')}
+                    </MenuItem>
+                    <MenuItem
+                      className="rounded-xl px-3 py-2 text-slate-700 hover:bg-slate-50 focus:bg-slate-50 focus:text-slate-900"
+                      onClick={() => {
+                        setActivePanel('files');
+                        triggerFilePicker();
+                      }}
+                    >
+                      {tr('Share a file')}
+                    </MenuItem>
+                    <MenuItem
+                      className="rounded-xl px-3 py-2 text-slate-700 hover:bg-slate-50 focus:bg-slate-50 focus:text-slate-900"
+                      onClick={() => setActivePanel('people')}
+                    >
+                      {tr('Show people')}
+                    </MenuItem>
+                    <MenuItem
+                      className="rounded-xl px-3 py-2 text-slate-700 hover:bg-slate-50 focus:bg-slate-50 focus:text-slate-900"
+                      onClick={() => setIsFullscreen((prev) => !prev)}
+                    >
+                      {isFullscreen
+                        ? tr('Exit Full Screen')
+                        : tr('Go Full Screen')}
+                    </MenuItem>
+                    <MenuItem
+                      className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-red-600 hover:!bg-red-100 focus:!bg-red-100 focus:text-red-700"
+                      onClick={() => void leaveRoom()}
+                    >
+                      {tr('End Call')}
+                    </MenuItem>
+                  </MenuList>
+                </Menu>
               </div>
             </div>
-
-            {showMore && (
-              <div
-                className={[
-                  'absolute z-30 min-w-[170px] rounded-xl border border-white/20 bg-black/80 p-2 text-xs text-white shadow-xl backdrop-blur-sm',
-                  isFullscreen
-                    ? 'bottom-24 left-1/2 -translate-x-1/2'
-                    : 'bottom-14 left-1/2 -translate-x-1/2',
-                ].join(' ')}
-                ref={moreMenuRef}
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    void copyRoom();
-                    setShowMore(false);
-                  }}
-                  className="block w-full rounded-lg px-2 py-1.5 text-left hover:bg-white/15"
-                >
-                  {tr('Copy Room ID')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void resendInvite();
-                    setShowMore(false);
-                  }}
-                  className="block w-full rounded-lg px-2 py-1.5 text-left hover:bg-white/15"
-                >
-                  {tr('Re-send Invite')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActivePanel((prev) =>
-                      prev === 'transcript' ? '' : 'transcript',
-                    );
-                    setShowMore(false);
-                  }}
-                  className="block w-full rounded-lg px-2 py-1.5 text-left hover:bg-white/15"
-                >
-                  {tr('Open transcript')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void persistTranscript({
-                      status: isConnected ? 'active' : 'completed',
-                    });
-                    setShowMore(false);
-                  }}
-                  className="block w-full rounded-lg px-2 py-1.5 text-left hover:bg-white/15"
-                >
-                  {tr('Save transcript')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    triggerFilePicker();
-                    setShowMore(false);
-                  }}
-                  className="block w-full rounded-lg px-2 py-1.5 text-left hover:bg-white/15"
-                >
-                  {tr('Share a file')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActivePanel((prev) =>
-                      prev === 'people' ? '' : 'people',
-                    );
-                    setShowMore(false);
-                  }}
-                  className="block w-full rounded-lg px-2 py-1.5 text-left hover:bg-white/15"
-                >
-                  {tr('Show people')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsFullscreen((prev) => !prev);
-                    setShowMore(false);
-                  }}
-                  className="block w-full rounded-lg px-2 py-1.5 text-left hover:bg-white/15"
-                >
-                  {isFullscreen ? tr('Exit Full Screen') : tr('Go Full Screen')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void leaveRoom();
-                    setShowMore(false);
-                  }}
-                  className="mt-1 block w-full rounded-lg bg-red-600/90 px-2 py-1.5 text-left font-semibold text-white hover:bg-red-700"
-                >
-                  {tr('End Call')}
-                </button>
-              </div>
-            )}
 
             {activePanel && (
               <aside
                 className={[
-                  'absolute z-20 w-[92%] max-w-sm rounded-2xl border border-white/20 bg-slate-950/85 p-3 text-white shadow-2xl backdrop-blur-xl',
-                  isFullscreen ? 'right-4 top-4' : 'right-3 top-12',
+                  'absolute z-20',
+                  isFullscreen
+                    ? 'right-4 top-4 w-[92%] max-w-sm'
+                    : 'inset-x-2 bottom-16 top-auto w-auto max-w-none sm:bottom-auto sm:right-3 sm:top-12 sm:left-auto sm:w-[92%] sm:max-w-sm',
                 ].join(' ')}
               >
-                {activePanel === 'transcript' && (
-                  <div>
-                    <div className="mb-2 flex items-start justify-between gap-2">
+                <Card
+                  shadow={false}
+                  className="border border-slate-200 bg-white text-slate-900"
+                >
+                  <CardBody className="space-y-3 p-3">
+                    <div className="grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1 sm:grid-cols-4">
+                      {[
+                        ['chat', tr('Chat')],
+                        ['transcript', tr('Transcript')],
+                        ['files', tr('Files')],
+                        ['people', tr('People')],
+                      ].map(([key, label]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setActivePanel(key)}
+                          className={[
+                            'rounded-xl px-2 py-2 text-[11px] font-semibold transition',
+                            activePanel === key
+                              ? 'bg-slate-900 text-white'
+                              : 'text-slate-600 hover:bg-white',
+                          ].join(' ')}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    {activePanel === 'transcript' && (
                       <div>
-                        <p className="text-sm font-semibold">
-                          {tr('Transcript')}
-                        </p>
-                        <p className="text-[10px] text-slate-300">
-                          {transcriptEntries.length} {tr('entries')}
-                          {transcriptUpdatedAt
-                            ? ` - ${tr('saved')} ${formatTranscriptSavedAt(transcriptUpdatedAt)}`
-                            : ''}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void persistTranscript({
-                              status: isConnected ? 'active' : 'completed',
-                            })
-                          }
-                          disabled={transcriptSaving}
-                          className="rounded-xl bg-blue-600 px-2.5 py-1.5 text-[10px] font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-70"
-                        >
-                          {transcriptSaving ? tr('Saving...') : tr('Save')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setActivePanel('')}
-                          className="rounded-full bg-white/10 p-1 hover:bg-white/20"
-                        >
-                          <IconClose />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="mb-2 rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-2">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[11px] font-medium text-emerald-100">
-                            {autoTranscriptError
-                              ? autoTranscriptError
-                              : autoTranscriptListening
-                                ? tr('Listening for speech...')
-                                : speechSupported
-                                  ? tr(
-                                      'Automatic transcript stays off until you start it.',
-                                    )
-                                  : tr(
-                                      'Live transcript unavailable on this browser.',
-                                    )}
-                          </p>
-                          {!autoTranscriptError && autoTranscriptPreview && (
-                            <p className="mt-1 truncate text-[10px] text-emerald-100/85">
-                              {autoTranscriptPreview}
+                        <div className="mb-2 flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">
+                              {tr('Transcript')}
                             </p>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={toggleAutoTranscript}
-                          disabled={!isConnected && !autoTranscriptEnabled}
-                          className={[
-                            'rounded-xl px-3 py-2 text-[10px] font-semibold disabled:cursor-not-allowed disabled:opacity-60',
-                            autoTranscriptEnabled
-                              ? 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
-                              : 'border border-emerald-200/30 bg-transparent text-emerald-100 hover:bg-white/10',
-                          ].join(' ')}
-                        >
-                          {autoTranscriptEnabled
-                            ? tr('Stop Live Transcript')
-                            : tr('Start Live Transcript')}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="h-44 space-y-2 overflow-y-auto rounded-xl border border-white/10 bg-black/30 p-2">
-                      {transcriptEntries.length === 0 && (
-                        <p className="text-xs text-slate-300">
-                          {tr(
-                            'Add important spoken notes here so the consultation is saved as a transcript.',
-                          )}
-                        </p>
-                      )}
-                      {transcriptEntries.map((entry) => {
-                        const isSelf =
-                          entry.speakerIdentity ===
-                          roomRef.current?.localParticipant?.identity;
-
-                        return (
-                          <div
-                            key={entry.id}
-                            className={[
-                              'rounded-lg px-2 py-1.5 text-xs',
-                              isSelf
-                                ? 'ml-8 bg-emerald-600/90 text-white'
-                                : 'mr-8 bg-white/10 text-slate-100',
-                            ].join(' ')}
-                          >
-                            <div className="mb-0.5 flex items-center justify-between gap-2 text-[10px]">
-                              <span
-                                className={
-                                  isSelf
-                                    ? 'text-emerald-50'
-                                    : 'text-emerald-200'
-                                }
-                              >
-                                {entry.speakerName}
-                              </span>
-                              <span className="text-slate-300">
-                                {formatTranscriptTime(entry.at)}
-                              </span>
-                            </div>
-                            <p>{entry.text}</p>
+                            <p className="text-[10px] text-slate-500">
+                              {transcriptEntries.length} {tr('entries')}
+                              {transcriptUpdatedAt
+                                ? ` - ${tr('saved')} ${formatTranscriptSavedAt(transcriptUpdatedAt)}`
+                                : ''}
+                            </p>
                           </div>
-                        );
-                      })}
-                      <div ref={transcriptEndRef} />
-                    </div>
-                    <form
-                      onSubmit={(e) => void addTranscriptEntry(e)}
-                      className="mt-2 space-y-2"
-                    >
-                      <textarea
-                        value={transcriptInput}
-                        onChange={(e) => setTranscriptInput(e.target.value)}
-                        placeholder={tr(
-                          'Add a transcript line or consultation note',
-                        )}
-                        rows={3}
-                        className="w-full rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs text-white outline-none placeholder:text-slate-300"
-                      />
-                      <div className="flex gap-2">
-                        <button
-                          type="submit"
-                          className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500"
-                        >
-                          {tr('Add line')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void persistTranscript({
-                              status: isConnected ? 'active' : 'completed',
-                            })
-                          }
-                          disabled={transcriptSaving}
-                          className="rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-70"
-                        >
-                          {transcriptRecordId
-                            ? tr('Update record')
-                            : tr('Save transcript')}
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                )}
-
-                {activePanel === 'chat' && (
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <p className="text-sm font-semibold">{tr('Chat')}</p>
-                      <button
-                        type="button"
-                        onClick={() => setActivePanel('')}
-                        className="rounded-full bg-white/10 p-1 hover:bg-white/20"
-                      >
-                        <IconClose />
-                      </button>
-                    </div>
-                    <div className="h-44 space-y-2 overflow-y-auto rounded-xl border border-white/10 bg-black/30 p-2">
-                      {chatMessages.length === 0 && (
-                        <p className="text-xs text-slate-300">
-                          {tr('No messages yet.')}
-                        </p>
-                      )}
-                      {chatMessages.map((message) => (
-                        <div
-                          key={message.id}
-                          className={[
-                            'rounded-lg px-2 py-1.5 text-xs',
-                            message.isSelf
-                              ? 'ml-8 bg-blue-600 text-white'
-                              : 'mr-8 bg-white/10 text-slate-100',
-                          ].join(' ')}
-                        >
-                          {!message.isSelf && (
-                            <p className="mb-0.5 text-[10px] text-blue-200">
-                              {message.fromLabel}
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void persistTranscript({
+                                  status: isConnected ? 'active' : 'completed',
+                                })
+                              }
+                              disabled={transcriptSaving}
+                              className="rounded-xl bg-slate-900 px-2.5 py-1.5 text-[10px] font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                              {transcriptSaving ? tr('Saving...') : tr('Save')}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setActivePanel('')}
+                              className="rounded-full border border-slate-200 bg-white p-1 text-slate-500 hover:bg-slate-50"
+                            >
+                              <IconClose />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="mb-2 rounded-xl border border-emerald-200 bg-emerald-50 p-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[11px] font-medium text-emerald-900">
+                                {autoTranscriptError
+                                  ? autoTranscriptError
+                                  : autoTranscriptListening
+                                    ? tr('Listening for speech...')
+                                    : speechSupported
+                                      ? tr(
+                                          'Automatic transcript stays off until you start it.',
+                                        )
+                                      : tr(
+                                          'Live transcript unavailable on this browser.',
+                                        )}
+                              </p>
+                              {!autoTranscriptError &&
+                                autoTranscriptPreview && (
+                                  <p className="mt-1 truncate text-[10px] text-emerald-700">
+                                    {autoTranscriptPreview}
+                                  </p>
+                                )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={toggleAutoTranscript}
+                              disabled={!isConnected && !autoTranscriptEnabled}
+                              className={[
+                                'rounded-xl px-3 py-2 text-[10px] font-semibold disabled:cursor-not-allowed disabled:opacity-60',
+                                autoTranscriptEnabled
+                                  ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                                  : 'border border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-100',
+                              ].join(' ')}
+                            >
+                              {autoTranscriptEnabled
+                                ? tr('Stop Live Transcript')
+                                : tr('Start Live Transcript')}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="h-44 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2">
+                          {transcriptEntries.length === 0 && (
+                            <p className="text-xs text-slate-500">
+                              {tr(
+                                'Add important spoken notes here so the consultation is saved as a transcript.',
+                              )}
                             </p>
                           )}
-                          <p>{message.message}</p>
-                        </div>
-                      ))}
-                      <div ref={chatEndRef} />
-                    </div>
-                    <form
-                      onSubmit={(e) => void sendChatMessage(e)}
-                      className="mt-2 flex gap-2"
-                    >
-                      <input
-                        value={chatInput}
-                        onChange={(e) => setChatInput(e.target.value)}
-                        placeholder={tr('Type a message')}
-                        className="flex-1 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs text-white outline-none placeholder:text-slate-300"
-                      />
-                      <button
-                        type="submit"
-                        className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500"
-                      >
-                        {tr('Send')}
-                      </button>
-                    </form>
-                  </div>
-                )}
+                          {transcriptEntries.map((entry) => {
+                            const isSelf =
+                              entry.speakerIdentity ===
+                              roomRef.current?.localParticipant?.identity;
 
-                {activePanel === 'files' && (
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <p className="text-sm font-semibold">
-                        {tr('Shared Files')}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setActivePanel('')}
-                        className="rounded-full bg-white/10 p-1 hover:bg-white/20"
-                      >
-                        <IconClose />
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={triggerFilePicker}
-                      className="mb-2 w-full rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500"
-                    >
-                      {tr('Share New File')}
-                    </button>
-                    <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-white/10 bg-black/30 p-2">
-                      {sharedFiles.length === 0 && (
-                        <p className="text-xs text-slate-300">
-                          {tr('No files shared yet.')}
-                        </p>
-                      )}
-                      {sharedFiles.map((file) => (
-                        <a
-                          key={file.id}
-                          href={file.dataUrl || '#'}
-                          download={file.name}
-                          className="block rounded-lg border border-white/10 bg-white/10 px-2 py-1.5 text-xs hover:bg-white/20"
+                            return (
+                              <div
+                                key={entry.id}
+                                className={[
+                                  'rounded-lg px-2 py-1.5 text-xs',
+                                  isSelf
+                                    ? 'ml-8 bg-emerald-600 text-white'
+                                    : 'mr-8 border border-slate-200 bg-white text-slate-700',
+                                ].join(' ')}
+                              >
+                                <div className="mb-0.5 flex items-center justify-between gap-2 text-[10px]">
+                                  <span
+                                    className={
+                                      isSelf
+                                        ? 'text-emerald-50'
+                                        : 'text-slate-500'
+                                    }
+                                  >
+                                    {entry.speakerName}
+                                  </span>
+                                  <span
+                                    className={
+                                      isSelf
+                                        ? 'text-emerald-100'
+                                        : 'text-slate-400'
+                                    }
+                                  >
+                                    {formatTranscriptTime(entry.at)}
+                                  </span>
+                                </div>
+                                <p>{entry.text}</p>
+                              </div>
+                            );
+                          })}
+                          <div ref={transcriptEndRef} />
+                        </div>
+                        <form
+                          onSubmit={(e) => void addTranscriptEntry(e)}
+                          className="mt-2 space-y-2"
                         >
-                          <p className="font-semibold">{file.name}</p>
-                          <p className="text-[10px] text-slate-300">
-                            {file.fromLabel} - {formatBytes(file.size)}
+                          <textarea
+                            value={transcriptInput}
+                            onChange={(e) => setTranscriptInput(e.target.value)}
+                            placeholder={tr(
+                              'Add a transcript line or consultation note',
+                            )}
+                            rows={3}
+                            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 outline-none placeholder:text-slate-400"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              type="submit"
+                              className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500"
+                            >
+                              {tr('Add line')}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void persistTranscript({
+                                  status: isConnected ? 'active' : 'completed',
+                                })
+                              }
+                              disabled={transcriptSaving}
+                              className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                              {transcriptRecordId
+                                ? tr('Update record')
+                                : tr('Save transcript')}
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    )}
+
+                    {activePanel === 'chat' && (
+                      <div>
+                        <div className="mb-2 flex items-center justify-between">
+                          <p className="text-sm font-semibold text-slate-900">
+                            {tr('Chat')}
                           </p>
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {activePanel === 'people' && (
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <p className="text-sm font-semibold">
-                        {tr('People in Room ({count})', {
-                          count: participantLabels.length,
-                        })}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setActivePanel('')}
-                        className="rounded-full bg-white/10 p-1 hover:bg-white/20"
-                      >
-                        <IconClose />
-                      </button>
-                    </div>
-                    <div className="max-h-52 space-y-2 overflow-y-auto rounded-xl border border-white/10 bg-black/30 p-2">
-                      {participantLabels.length === 0 && (
-                        <p className="text-xs text-slate-300">
-                          {tr('Nobody else has joined yet.')}
-                        </p>
-                      )}
-                      {participantLabels.map((participant) => (
-                        <div
-                          key={participant.id}
-                          className="flex items-center justify-between rounded-lg border border-white/10 bg-white/10 px-2 py-1.5 text-xs"
-                        >
-                          <span>{participant.label}</span>
-                          {participant.raised && (
-                            <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] text-amber-200">
-                              {tr('Hand raised')}
-                            </span>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => setActivePanel('')}
+                            className="rounded-full border border-slate-200 bg-white p-1 text-slate-500 hover:bg-slate-50"
+                          >
+                            <IconClose />
+                          </button>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                        <div className="h-44 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2">
+                          {chatMessages.length === 0 && (
+                            <p className="text-xs text-slate-500">
+                              {tr('No messages yet.')}
+                            </p>
+                          )}
+                          {chatMessages.map((message) => (
+                            <div
+                              key={message.id}
+                              className={[
+                                'rounded-lg px-2 py-1.5 text-xs',
+                                message.isSelf
+                                  ? 'ml-8 bg-slate-900 text-white'
+                                  : 'mr-8 border border-slate-200 bg-white text-slate-700',
+                              ].join(' ')}
+                            >
+                              {!message.isSelf && (
+                                <p className="mb-0.5 text-[10px] text-slate-500">
+                                  {message.fromLabel}
+                                </p>
+                              )}
+                              <p>{message.message}</p>
+                            </div>
+                          ))}
+                          <div ref={chatEndRef} />
+                        </div>
+                        <form
+                          onSubmit={(e) => void sendChatMessage(e)}
+                          className="mt-2 flex gap-2"
+                        >
+                          <input
+                            value={chatInput}
+                            onChange={(e) => setChatInput(e.target.value)}
+                            placeholder={tr('Type a message')}
+                            className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 outline-none placeholder:text-slate-400"
+                          />
+                          <button
+                            type="submit"
+                            className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+                          >
+                            {tr('Send')}
+                          </button>
+                        </form>
+                      </div>
+                    )}
+
+                    {activePanel === 'files' && (
+                      <div>
+                        <div className="mb-2 flex items-center justify-between">
+                          <p className="text-sm font-semibold text-slate-900">
+                            {tr('Shared Files')}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setActivePanel('')}
+                            className="rounded-full border border-slate-200 bg-white p-1 text-slate-500 hover:bg-slate-50"
+                          >
+                            <IconClose />
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={triggerFilePicker}
+                          className="mb-2 w-full rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+                        >
+                          {tr('Share New File')}
+                        </button>
+                        <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2">
+                          {sharedFiles.length === 0 && (
+                            <p className="text-xs text-slate-500">
+                              {tr('No files shared yet.')}
+                            </p>
+                          )}
+                          {sharedFiles.map((file) => (
+                            <a
+                              key={file.id}
+                              href={file.dataUrl || '#'}
+                              download={file.name}
+                              className="block rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+                            >
+                              <p className="font-semibold text-slate-900">
+                                {file.name}
+                              </p>
+                              <p className="text-[10px] text-slate-500">
+                                {file.fromLabel} - {formatBytes(file.size)}
+                              </p>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {activePanel === 'people' && (
+                      <div>
+                        <div className="mb-2 flex items-center justify-between">
+                          <p className="text-sm font-semibold text-slate-900">
+                            {tr('People in Room ({count})', {
+                              count: participantLabels.length,
+                            })}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setActivePanel('')}
+                            className="rounded-full border border-slate-200 bg-white p-1 text-slate-500 hover:bg-slate-50"
+                          >
+                            <IconClose />
+                          </button>
+                        </div>
+                        <div className="max-h-52 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2">
+                          {participantLabels.length === 0 && (
+                            <p className="text-xs text-slate-500">
+                              {tr('Nobody else has joined yet.')}
+                            </p>
+                          )}
+                          {participantLabels.map((participant) => (
+                            <div
+                              key={participant.id}
+                              className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700"
+                            >
+                              <span>{participant.label}</span>
+                              {participant.raised && (
+                                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700">
+                                  {tr('Hand raised')}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardBody>
+                </Card>
               </aside>
             )}
 
             <div
               className={[
-                'absolute right-3 w-[35%] min-w-[150px] max-w-[240px] overflow-hidden rounded-lg border border-white/35 bg-slate-950 shadow-xl',
-                isFullscreen ? 'bottom-24' : 'bottom-3',
+                'absolute z-10 overflow-hidden rounded-lg border border-white/35 bg-slate-950 shadow-xl',
+                isFullscreen
+                  ? 'bottom-24 right-3 w-[240px] max-w-[32vw]'
+                  : 'bottom-16 right-2 w-24 sm:bottom-3 sm:right-3 sm:w-[35%] sm:min-w-[150px] sm:max-w-[240px]',
               ].join(' ')}
             >
               <video

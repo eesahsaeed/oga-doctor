@@ -28,6 +28,11 @@ const LANGUAGE_NAMES = {
 
 const SERVER_TRANSLATIONS = {
   ha: {
+    'User not found': 'Ba a samu mai amfani ba',
+    'Doctor profile is not available to patients yet.':
+      'Bayanan likitan nan ba su shirya ga marasa lafiya ba tukuna.',
+    'Invalid email or password': 'Imel ko kalmar sirri ba daidai ba ne',
+    'Sign in successful': 'An shiga cikin nasara',
     'If an account with that email exists, a password reset link has been sent.':
       'Idan akwai asusu da wannan imel din, an tura hanyar sake saita kalmar sirri.',
     'Reset token is required': 'Ana bukatar reset token',
@@ -51,6 +56,11 @@ const SERVER_TRANSLATIONS = {
       'Idan ba kai ne ka nemi wannan ba, za ka iya watsi da wannan imel cikin aminci.',
   },
   ig: {
+    'User not found': 'Ahughi onye oru a',
+    'Doctor profile is not available to patients yet.':
+      'Profaịlụ dọkịta a adịbeghị njikere ka ndị ọrịa hụ ya ugbu a.',
+    'Invalid email or password': 'Email ma obu okwuntughe ezighi ezi',
+    'Sign in successful': 'Mbanye gara nke oma',
     'If an account with that email exists, a password reset link has been sent.':
       'Oburu na akaunti di na email a, e zitela njikọ reset okwuntughe.',
     'Reset token is required': 'A choro reset token',
@@ -73,6 +83,11 @@ const SERVER_TRANSLATIONS = {
       'Ọ bụrụ na ịrịọghị reset a, ị nwere ike ileghara email a anya n’enweghị nsogbu.',
   },
   yo: {
+    'User not found': 'A ko ri olumulo naa',
+    'Doctor profile is not available to patients yet.':
+      'Profaili dokita yii ko tii setan fun awon alaisan sibẹsibẹ.',
+    'Invalid email or password': 'Imeeli tabi oro asina ko pe',
+    'Sign in successful': 'Wole ni ifowopamo',
     'If an account with that email exists, a password reset link has been sent.':
       'Ti akanti kan ba wa pelu imeeli yen, a ti fi ọna asopọ atunse oro asina ranṣẹ.',
     'Reset token is required': 'A nilo reset token',
@@ -95,6 +110,11 @@ const SERVER_TRANSLATIONS = {
       'Ti kii ba se iwo lo beere fun atunse yi, o le foju imeeli yi kọ lailewu.',
   },
   pcm: {
+    'User not found': 'We no see this user',
+    'Doctor profile is not available to patients yet.':
+      'Doctor profile never ready for patients to see am yet.',
+    'Invalid email or password': 'Email or password no correct.',
+    'Sign in successful': 'Sign in work well.',
     'If an account with that email exists, a password reset link has been sent.':
       'If account with that email dey, we don send reset link.',
     'Reset token is required': 'Reset token na required',

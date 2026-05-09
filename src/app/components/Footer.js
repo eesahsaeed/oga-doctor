@@ -1,8 +1,27 @@
-import { Typography, IconButton, Button } from '@material-tailwind/react';
+import { Typography } from '@material-tailwind/react';
 import { useLanguage } from '../context/LanguageContext';
 
 const LINKS = ['About', 'Services', 'Doctors', 'Blog', 'Contact'];
 const UNHASHED_LINKS = ['Privacy Policy', 'Terms of Service'];
+const APP_LINKS = [
+  {
+    label: 'App Store',
+    icon: '/logos/logo-apple.png',
+    href: 'https://apps.apple.com/ng/app/ogadoctor',
+  },
+  {
+    label: 'Google Play',
+    icon: '/logos/logo-google.png',
+    href: 'https://play.google.com/store/apps/details?id=com.ogadoctor.app',
+  },
+];
+const SOCIAL_ICONS = [
+  { key: 'twitter', icon: 'fa-brands fa-twitter', label: 'Twitter' },
+  { key: 'facebook', icon: 'fa-brands fa-facebook', label: 'Facebook' },
+  { key: 'instagram', icon: 'fa-brands fa-instagram', label: 'Instagram' },
+  { key: 'whatsapp', icon: 'fa-brands fa-whatsapp', label: 'WhatsApp' },
+  { key: 'linkedin', icon: 'fa-brands fa-linkedin', label: 'LinkedIn' },
+];
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -87,43 +106,29 @@ export function Footer() {
               {tr('Get the App')}
             </Typography>
             <div className="mx-auto flex w-full max-w-sm flex-col gap-3 md:mx-0 md:max-w-none">
-              <Button
-                color="white"
-                size="lg"
-                className="flex items-center justify-center gap-3 normal-case shadow-md transition-all hover:shadow-lg"
-                onClick={() =>
-                  window.open(
-                    'https://apps.apple.com/ng/app/ogadoctor',
-                    '_blank',
-                  )
-                }
-              >
-                <img
-                  src="/logos/logo-apple.png"
-                  className="h-7 w-7"
-                  alt={tr('App Store')}
-                />
-                {tr('App Store')}
-              </Button>
-
-              <Button
-                color="white"
-                size="lg"
-                className="flex items-center justify-center gap-3 normal-case shadow-md transition-all hover:shadow-lg"
-                onClick={() =>
-                  window.open(
-                    'https://play.google.com/store/apps/details?id=com.ogadoctor.app',
-                    '_blank',
-                  )
-                }
-              >
-                <img
-                  src="/logos/logo-google.png"
-                  className="h-7 w-7"
-                  alt={tr('Google Play')}
-                />
-                {tr('Google Play')}
-              </Button>
+              {APP_LINKS.map((link) => (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-center gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold transition-transform hover:-translate-y-0.5"
+                  style={{
+                    color: '#0f172a',
+                    borderColor: '#e2e8f0',
+                    backgroundColor: '#ffffff',
+                    boxShadow:
+                      '0 10px 24px rgba(15, 23, 42, 0.14), 0 4px 10px rgba(15, 23, 42, 0.08)',
+                  }}
+                >
+                  <img
+                    src={link.icon}
+                    className="h-7 w-7"
+                    alt={tr(link.label)}
+                  />
+                  <span style={{ color: '#0f172a' }}>{tr(link.label)}</span>
+                </a>
+              ))}
             </div>
           </div>
         </div>
@@ -138,21 +143,24 @@ export function Footer() {
           </Typography>
 
           <div className="flex gap-3">
-            <IconButton variant="text" color="white" size="sm">
-              <i className="fa-brands fa-twitter text-2xl opacity-80 transition-opacity hover:opacity-100" />
-            </IconButton>
-            <IconButton variant="text" color="white" size="sm">
-              <i className="fa-brands fa-facebook text-2xl opacity-80 transition-opacity hover:opacity-100" />
-            </IconButton>
-            <IconButton variant="text" color="white" size="sm">
-              <i className="fa-brands fa-instagram text-2xl opacity-80 transition-opacity hover:opacity-100" />
-            </IconButton>
-            <IconButton variant="text" color="white" size="sm">
-              <i className="fa-brands fa-whatsapp text-2xl opacity-80 transition-opacity hover:opacity-100" />
-            </IconButton>
-            <IconButton variant="text" color="white" size="sm">
-              <i className="fa-brands fa-linkedin text-2xl opacity-80 transition-opacity hover:opacity-100" />
-            </IconButton>
+            {SOCIAL_ICONS.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                aria-label={tr(item.label)}
+                className="flex h-11 w-11 items-center justify-center rounded-full border transition hover:-translate-y-0.5"
+                style={{
+                  color: '#ffffff',
+                  borderColor: 'rgba(255, 255, 255, 0.18)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                }}
+              >
+                <i
+                  className={`${item.icon} text-2xl opacity-90 transition-opacity hover:opacity-100`}
+                  style={{ color: '#ffffff' }}
+                />
+              </button>
+            ))}
           </div>
         </div>
       </div>

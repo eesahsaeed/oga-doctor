@@ -17,7 +17,7 @@ export function isPatientUser(user) {
 }
 
 export function isOnboardingCompleteForUser(user) {
-  return isDoctorUser(user) || Boolean(user?.onboarding?.onboardingCompleted);
+  return Boolean(user?.onboarding?.onboardingCompleted);
 }
 
 export function getAuthRoute(accountType = 'patient', mode = 'signin') {
@@ -27,9 +27,5 @@ export function getAuthRoute(accountType = 'patient', mode = 'signin') {
 }
 
 export function getDefaultAppRoute(user) {
-  if (isDoctorUser(user)) {
-    return '/app/dashboard';
-  }
-
   return isOnboardingCompleteForUser(user) ? '/app/dashboard' : '/onboarding';
 }

@@ -132,11 +132,16 @@ createRoot(document.getElementById('root')).render(
                 <Route path="profile" element={<ProfilePage />} />
                 <Route
                   path="consultation/doctors"
-                  element={<DoctorDirectoryPage kind="general" />}
+                  element={<DoctorDirectoryPage kind="all" />}
                 />
                 <Route
                   path="consultation/specialists"
-                  element={<DoctorDirectoryPage kind="specialist" />}
+                  element={
+                    <Navigate
+                      to="/app/consultation/doctors?kind=specialist"
+                      replace
+                    />
+                  }
                 />
                 <Route
                   path="consultation/messages"
