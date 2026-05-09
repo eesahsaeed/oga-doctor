@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 
 const DEFAULT_MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+const DEFAULT_REQUEST_RETRIES = 2;
 const DATA_URL_PATTERN =
   /^data:(image\/(?:jpeg|jpg|png|webp|svg\+xml));base64,([A-Za-z0-9+/=]+)$/i;
 
@@ -40,6 +42,12 @@ function readConfig() {
       .replace(/^\/+|\/+$/g, ''),
     maxImageBytes: Number(
       process.env.B2_MAX_IMAGE_BYTES || DEFAULT_MAX_IMAGE_BYTES,
+    ),
+    requestTimeoutMs: Number(
+      process.env.B2_REQUEST_TIMEOUT_MS || DEFAULT_REQUEST_TIMEOUT_MS,
+    ),
+    requestRetries: Number(
+      process.env.B2_REQUEST_RETRIES || DEFAULT_REQUEST_RETRIES,
     ),
   };
 }
@@ -81,6 +89,124 @@ function parseJsonResponse(response, fallbackMessage) {
 
     return payload || {};
   });
+}
+
+function delay(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function createTimeoutSignal(timeoutMs) {
+  if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) {
+    return AbortSignal.timeout(timeoutMs);
+  }
+
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), timeoutMs);
+  return controller.signal;
+}
+
+function isBackblazeNetworkError(error) {
+  const code = String(error?.code || '')
+    .trim()
+    .toUpperCase();
+  const causeCode = String(error?.cause?.code || '')
+    .trim()
+    .toUpperCase();
+  const name = String(error?.name || '')
+    .trim()
+    .toLowerCase();
+  const causeName = String(error?.cause?.name || '')
+    .trim()
+    .toLowerCase();
+  const message = String(error?.message || '')
+    .trim()
+    .toLowerCase();
+  const causeMessage = String(error?.cause?.message || '')
+    .trim()
+    .toLowerCase();
+
+  return (
+    [code, causeCode].some((value) =>
+      [
+        'ETIMEDOUT',
+        'ECONNRESET',
+        'ECONNREFUSED',
+        'EHOSTUNREACH',
+        'ENETUNREACH',
+        'EAI_AGAIN',
+        'UND_ERR_CONNECT_TIMEOUT',
+        'UND_ERR_HEADERS_TIMEOUT',
+        'UND_ERR_BODY_TIMEOUT',
+      ].includes(value),
+    ) ||
+    name.includes('timeout') ||
+    causeName.includes('timeout') ||
+    message.includes('fetch failed') ||
+    message.includes('timeout') ||
+    causeMessage.includes('timeout') ||
+    causeMessage.includes('fetch failed')
+  );
+}
+
+function toBackblazeServiceError(error, fallbackMessage) {
+  if (error?.service === 'backblaze' && error?.statusCode) {
+    return error;
+  }
+
+  const message = isBackblazeNetworkError(error)
+    ? 'Doctor image storage is temporarily unreachable. Check the server internet connection and Backblaze availability, then try again.'
+    : fallbackMessage;
+
+  const wrappedError = new Error(message);
+  wrappedError.cause = error;
+  wrappedError.statusCode = 503;
+  wrappedError.exposeMessage = true;
+  wrappedError.service = 'backblaze';
+  return wrappedError;
+}
+
+async function fetchBackblaze(url, options = {}, fallbackMessage) {
+  const config = readConfig();
+  const timeoutMs =
+    Number.isFinite(config.requestTimeoutMs) && config.requestTimeoutMs > 0
+      ? config.requestTimeoutMs
+      : DEFAULT_REQUEST_TIMEOUT_MS;
+  const retries =
+    Number.isFinite(config.requestRetries) && config.requestRetries >= 0
+      ? config.requestRetries
+      : DEFAULT_REQUEST_RETRIES;
+
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await fetch(url, {
+        ...options,
+        signal: options.signal || createTimeoutSignal(timeoutMs),
+      });
+    } catch (error) {
+      lastError = error;
+
+      if (!isBackblazeNetworkError(error) || attempt >= retries) {
+        throw toBackblazeServiceError(error, fallbackMessage);
+      }
+
+      await delay(Math.min(750 * (attempt + 1), 2500));
+    }
+  }
+
+  throw toBackblazeServiceError(lastError, fallbackMessage);
+}
+
+async function requestBackblazeJson(url, options = {}, fallbackMessage) {
+  try {
+    const response = await fetchBackblaze(url, options, fallbackMessage);
+    return await parseJsonResponse(response, fallbackMessage);
+  } catch (error) {
+    throw toBackblazeServiceError(error, fallbackMessage);
+  }
 }
 
 function parseImageDataUrl(
@@ -127,7 +253,7 @@ async function authorizeAccount(config) {
     `${config.keyId}:${config.applicationKey}`,
   ).toString('base64');
 
-  const response = await fetch(
+  return requestBackblazeJson(
     'https://api.backblazeb2.com/b2api/v3/b2_authorize_account',
     {
       method: 'GET',
@@ -136,9 +262,16 @@ async function authorizeAccount(config) {
         Accept: 'application/json',
       },
     },
+    'Doctor image storage is temporarily unavailable. Please try again.',
   );
+}
 
-  return parseJsonResponse(response, 'Backblaze authorization failed');
+function resolveDownloadUrl(auth = {}) {
+  return String(
+    auth?.apiInfo?.storageApi?.downloadUrl || auth?.downloadUrl || '',
+  )
+    .trim()
+    .replace(/\/+$/, '');
 }
 
 async function getUploadTarget(
@@ -150,15 +283,17 @@ async function getUploadTarget(
     bucketId,
   )}`;
 
-  const response = await fetch(endpoint, {
-    method: 'GET',
-    headers: {
-      Authorization: authorizationToken,
-      Accept: 'application/json',
+  return requestBackblazeJson(
+    endpoint,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: authorizationToken,
+        Accept: 'application/json',
+      },
     },
-  });
-
-  return parseJsonResponse(response, 'Backblaze upload URL request failed');
+    'Doctor image storage is temporarily unavailable. Please try again.',
+  );
 }
 
 async function listFileNames(
@@ -180,7 +315,7 @@ async function listFileNames(
     params.set('prefix', prefix);
   }
 
-  const response = await fetch(
+  return requestBackblazeJson(
     `${apiUrl}/b2api/v4/b2_list_file_names?${params.toString()}`,
     {
       method: 'GET',
@@ -189,9 +324,8 @@ async function listFileNames(
         Accept: 'application/json',
       },
     },
+    'Doctor image storage is temporarily unavailable. Please try again.',
   );
-
-  return parseJsonResponse(response, 'Backblaze file listing failed');
 }
 
 async function deleteFileVersion(
@@ -199,17 +333,19 @@ async function deleteFileVersion(
   authorizationToken = '',
   { fileName = '', fileId = '' } = {},
 ) {
-  const response = await fetch(`${apiUrl}/b2api/v4/b2_delete_file_version`, {
-    method: 'POST',
-    headers: {
-      Authorization: authorizationToken,
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
+  return requestBackblazeJson(
+    `${apiUrl}/b2api/v4/b2_delete_file_version`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: authorizationToken,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ fileName, fileId }),
     },
-    body: JSON.stringify({ fileName, fileId }),
-  });
-
-  return parseJsonResponse(response, 'Backblaze file deletion failed');
+    'Doctor image storage is temporarily unavailable. Please try again.',
+  );
 }
 
 function buildPublicUrl({
@@ -257,7 +393,7 @@ export function extractBackblazeFileNameFromUrl(fileUrl = '') {
   }
 }
 
-export function buildBackblazeProxyUrl(fileName = '') {
+export function buildBackblazeProxyUrl(fileName = '', version = '') {
   const normalized = String(fileName || '')
     .trim()
     .replace(/^\/+/, '');
@@ -265,7 +401,16 @@ export function buildBackblazeProxyUrl(fileName = '') {
     return '';
   }
 
-  return `/api/doctor/avatar-file?file=${encodeURIComponent(normalized)}`;
+  const search = new URLSearchParams({
+    file: normalized,
+  });
+
+  const normalizedVersion = String(version || '').trim();
+  if (normalizedVersion) {
+    search.set('v', normalizedVersion);
+  }
+
+  return `/api/doctor/avatar-file?${search.toString()}`;
 }
 
 export async function downloadBackblazeFileByName(fileName = '') {
@@ -284,9 +429,7 @@ export async function downloadBackblazeFileByName(fileName = '') {
   }
 
   const auth = await authorizeAccount(config);
-  const downloadUrl = String(auth.downloadUrl || '')
-    .trim()
-    .replace(/\/+$/, '');
+  const downloadUrl = resolveDownloadUrl(auth);
   if (!downloadUrl || !config.bucketName) {
     throw new Error('Backblaze download URL is not available.');
   }
@@ -296,7 +439,7 @@ export async function downloadBackblazeFileByName(fileName = '') {
     .map((segment) => encodeURIComponent(segment))
     .join('/');
 
-  const response = await fetch(
+  const response = await fetchBackblaze(
     `${downloadUrl}/file/${encodeURIComponent(config.bucketName)}/${encodedFileName}`,
     {
       method: 'GET',
@@ -304,6 +447,7 @@ export async function downloadBackblazeFileByName(fileName = '') {
         Authorization: auth.authorizationToken || '',
       },
     },
+    'Doctor image storage is temporarily unavailable. Please try again.',
   );
 
   if (!response.ok) {
@@ -398,23 +542,27 @@ export async function uploadDoctorAvatarToBackblaze({
     config.bucketId,
   );
 
-  const response = await fetch(uploadTarget.uploadUrl, {
-    method: 'POST',
-    headers: {
-      Authorization:
-        uploadTarget.authorizationToken ||
-        uploadTarget.uploadAuthorizationToken ||
-        '',
-      'Content-Type': contentType,
-      'Content-Length': String(buffer.length),
-      'X-Bz-File-Name': encodeURIComponent(fileName),
-      'X-Bz-Content-Sha1': sha1,
-      'X-Bz-Info-b2-cache-control': encodeURIComponent(
-        'public,max-age=31536000,immutable',
-      ),
+  const response = await fetchBackblaze(
+    uploadTarget.uploadUrl,
+    {
+      method: 'POST',
+      headers: {
+        Authorization:
+          uploadTarget.authorizationToken ||
+          uploadTarget.uploadAuthorizationToken ||
+          '',
+        'Content-Type': contentType,
+        'Content-Length': String(buffer.length),
+        'X-Bz-File-Name': encodeURIComponent(fileName),
+        'X-Bz-Content-Sha1': sha1,
+        'X-Bz-Info-b2-cache-control': encodeURIComponent(
+          'public,max-age=31536000,immutable',
+        ),
+      },
+      body: buffer,
     },
-    body: buffer,
-  });
+    'Doctor image storage is temporarily unavailable. Please try again.',
+  );
 
   const uploadResult = await parseJsonResponse(
     response,
@@ -422,7 +570,7 @@ export async function uploadDoctorAvatarToBackblaze({
   );
   const publicUrl = buildPublicUrl({
     publicBaseUrl: config.publicBaseUrl,
-    downloadUrl: auth.downloadUrl,
+    downloadUrl: resolveDownloadUrl(auth),
     bucketName: config.bucketName,
     fileName,
   });

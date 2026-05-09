@@ -6,6 +6,7 @@ import { buildNameAvatarDataUrl } from '../../lib/nameAvatar';
 import {
   clearStoredFormDraft,
   getStoredFormDraft,
+  saveSession,
   saveStoredFormDraft,
 } from '../../lib/session';
 import { isDoctorUser } from '../../lib/account';
@@ -53,7 +54,7 @@ function parseCommaList(value = '') {
 
 function buildDoctorForm(user = {}, draft = {}) {
   return {
-    avatar: draft.avatar ?? user?.avatar ?? '',
+    avatar: user?.avatar || draft.avatar || '',
     name: draft.name ?? user?.name ?? '',
     title: draft.title ?? user?.title ?? '',
     specialty: draft.specialty ?? user?.specialty ?? '',
@@ -146,7 +147,7 @@ async function buildAvatarDataUrl(file) {
 }
 
 export default function ProfilePage() {
-  const { user, refreshProfile } = useAuth();
+  const { user, token, refreshProfile, setUser } = useAuth();
   const { tr, formatDate } = useLanguage();
   const isDoctor = isDoctorUser(user);
   const draftKey = isDoctor ? 'doctor_profile' : 'profile';
@@ -305,6 +306,11 @@ export default function ProfilePage() {
 
       if (!nextAvatar) {
         throw new Error(tr('Failed to update profile picture.'));
+      }
+
+      if (payload?.user) {
+        setUser(payload.user);
+        saveSession({ token, user: payload.user });
       }
 
       setDoctorForm((prev) => {

@@ -31,6 +31,8 @@ export const I18N_COVERAGE_TRANSLATIONS = {
     'Found {count} result{suffix}': 'An samu sakamako {count}{suffix}',
     'Go to home screen': 'Je zuwa allon gida',
     'Google Play Store': 'Shagon Google Play',
+    'We could not reach the server. Check your internet connection or backend URL and try again.':
+      'Ba a iya isa sabar ba. Duba haɗin intanet dinka ko adireshin backend sannan ka sake gwadawa.',
     "Got questions? We've got clear answers. Find quick help about how OgaDoctor works, payments, doctors, privacy, and more.":
       'Kana da tambayoyi? Muna da bayyanannun amsoshi. Samu taimako cikin sauri game da yadda OgaDoctor ke aiki, biyan kudi, likitoci, tsare sirri, da sauransu.',
     'If an account with that email exists, a password reset link has been sent.':
@@ -183,6 +185,8 @@ export const I18N_COVERAGE_TRANSLATIONS = {
     'Found {count} result{suffix}': 'Found {count} result{suffix}',
     'Go to home screen': 'Go to home screen',
     'Google Play Store': 'Google Play Store',
+    'We could not reach the server. Check your internet connection or backend URL and try again.':
+      'Anyi enweghi ike iru sava. Lelee njikọ internet gị ma ọ bụ backend URL wee nwaa ọzọ.',
     "Got questions? We've got clear answers. Find quick help about how OgaDoctor works, payments, doctors, privacy, and more.":
       "Got questions? We've got clear answers. Find quick help about how OgaDoctor works, payments, doctors, privacy, and more.",
     'If an account with that email exists, a password reset link has been sent.':
@@ -335,6 +339,8 @@ export const I18N_COVERAGE_TRANSLATIONS = {
     'Google Play Store': 'Google Play Store',
     "Got questions? We've got clear answers. Find quick help about how OgaDoctor works, payments, doctors, privacy, and more.":
       'O ni ibeere? A ni idahun kedere. Ri iranlowo kiakia nipa bi OgaDoctor se n sise, isanwo, awon dokita, asiri, ati bee bee lo.',
+    'We could not reach the server. Check your internet connection or backend URL and try again.':
+      'A ko le de server naa. Ṣayẹwo asopọ ayelujara rẹ tabi backend URL, lẹhinna gbiyanju lẹẹkansi.',
     'If an account with that email exists, a password reset link has been sent.':
       'Ti akanti kan ba wa pelu imeeli yen, a ti fi ona atunse oro asina ranse.',
     'We could not find an account with that email. Check the address or create a new account.':
@@ -483,6 +489,8 @@ export const I18N_COVERAGE_TRANSLATIONS = {
     'Google Play Store': 'Google Play Store',
     "Got questions? We've got clear answers. Find quick help about how OgaDoctor works, payments, doctors, privacy, and more.":
       'You get question? We get clear answer. See quick help about how OgaDoctor dey work, payment, doctor, privacy, and more.',
+    'We could not reach the server. Check your internet connection or backend URL and try again.':
+      'We no fit reach the server. Check your internet connection or backend URL come try again.',
     'If an account with that email exists, a password reset link has been sent.':
       'If account with that email dey, reset link don send.',
     'We could not find an account with that email. Check the address or create a new account.':

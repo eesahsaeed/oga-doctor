@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { PaperAirplaneIcon } from '@heroicons/react/24/solid';
 import { Link, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../../lib/api';
 import { getStoredToken } from '../../lib/session';
@@ -32,17 +33,85 @@ function upsertChat(chats = [], nextChat) {
   return sortChats([nextChat, ...remaining]);
 }
 
-function TypingDots({ colorClass = 'bg-current' }) {
+function buildOptimisticChatMessage({
+  message,
+  senderType,
+  senderName,
+  senderLanguage,
+}) {
+  return {
+    id: `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    senderType,
+    senderName,
+    senderLanguage,
+    message,
+    createdAt: new Date().toISOString(),
+    readBy: [senderType],
+    optimistic: true,
+  };
+}
+
+function handleComposerInput(event) {
+  const element = event.currentTarget;
+  if (!element) {
+    return;
+  }
+
+  element.style.height = '40px';
+  element.style.height = `${Math.min(element.scrollHeight, 160)}px`;
+  element.style.overflowY = element.scrollHeight > 160 ? 'auto' : 'hidden';
+}
+
+function ThreeDotsTypingIndicator({
+  label = 'Typing',
+  className = '',
+  dotColor = '#6b7280',
+  compact = false,
+}) {
+  const dotSize = compact ? 6 : 8;
+  const bounceHeight = compact ? 4 : 6;
+
   return (
-    <span className="inline-flex items-center gap-1 align-middle">
-      {[0, 1, 2].map((index) => (
-        <span
-          key={index}
-          className={`h-2.5 w-2.5 rounded-full ${colorClass} animate-bounce`}
-          style={{ animationDelay: `${index * 0.12}s` }}
-        />
-      ))}
-    </span>
+    <div
+      className={`flex items-center gap-2 px-0 py-0 align-middle ${className}`}
+    >
+      <span className="sr-only">{label}</span>
+
+      <div className="flex items-center gap-1">
+        {[0, 1, 2].map((index) => (
+          <span
+            key={index}
+            className="oga-typing-dot"
+            style={{
+              width: `${dotSize}px`,
+              height: `${dotSize}px`,
+              background: dotColor,
+              animationDelay: `${index * 0.15}s`,
+              ['--oga-typing-bounce-y']: `-${bounceHeight}px`,
+            }}
+          />
+        ))}
+      </div>
+
+      <style>
+        {`
+          .oga-typing-dot {
+            border-radius: 9999px;
+            animation: ogaTypingBounce 1s infinite ease-in-out;
+          }
+          @keyframes ogaTypingBounce {
+            0%, 80%, 100% {
+              transform: translateY(0);
+              opacity: 0.6;
+            }
+            40% {
+              transform: translateY(var(--oga-typing-bounce-y, -6px));
+              opacity: 1;
+            }
+          }
+        `}
+      </style>
+    </div>
   );
 }
 
@@ -50,6 +119,12 @@ export default function DoctorMessagesPage() {
   const { user } = useAuth();
   const { tr, formatDateTime, language } = useLanguage();
   const endRef = useRef(null);
+  const messagesScrollRef = useRef(null);
+  const draftInputRef = useRef(null);
+  const previousChatIdRef = useRef('');
+  const previousLastMessageIdRef = useRef('');
+  const latestTypingChatIdRef = useRef('');
+  const typingActiveRef = useRef(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedChatId = searchParams.get('chatId') || '';
   const isDoctor = isDoctorUser(user);
@@ -78,15 +153,8 @@ export default function DoctorMessagesPage() {
 
   useEffect(() => {
     let active = true;
-    let inFlight = false;
-    let intervalId;
 
     async function loadChats({ initial = false } = {}) {
-      if (inFlight) {
-        return;
-      }
-
-      inFlight = true;
       if (initial) {
         setLoadingList(true);
         setError('');
@@ -112,18 +180,13 @@ export default function DoctorMessagesPage() {
         if (active && initial) {
           setLoadingList(false);
         }
-        inFlight = false;
       }
     }
 
     void loadChats({ initial: true });
-    intervalId = window.setInterval(() => {
-      void loadChats();
-    }, 6000);
 
     return () => {
       active = false;
-      window.clearInterval(intervalId);
     };
   }, [selectedChatId, setSearchParams, tr]);
 
@@ -134,15 +197,8 @@ export default function DoctorMessagesPage() {
     }
 
     let active = true;
-    let inFlight = false;
-    let intervalId;
 
     async function loadChat({ initial = false } = {}) {
-      if (inFlight) {
-        return;
-      }
-
-      inFlight = true;
       if (initial) {
         setLoadingChat(true);
         setError('');
@@ -164,24 +220,38 @@ export default function DoctorMessagesPage() {
         if (active && initial) {
           setLoadingChat(false);
         }
-        inFlight = false;
       }
     }
 
     void loadChat({ initial: true });
-    intervalId = window.setInterval(() => {
-      void loadChat();
-    }, 2500);
 
     return () => {
       active = false;
-      window.clearInterval(intervalId);
     };
   }, [selectedChatId, tr]);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [selectedChat?.messages]);
+    const container = messagesScrollRef.current;
+    if (!container) {
+      return;
+    }
+
+    const messages = Array.isArray(selectedChat?.messages)
+      ? selectedChat.messages
+      : [];
+    const lastMessageId = messages[messages.length - 1]?.id || '';
+    const chatChanged = previousChatIdRef.current !== selectedChatId;
+    const messageChanged = previousLastMessageIdRef.current !== lastMessageId;
+
+    if (chatChanged) {
+      container.scrollTop = container.scrollHeight;
+    } else if (messageChanged && lastMessageId) {
+      endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+
+    previousChatIdRef.current = selectedChatId;
+    previousLastMessageIdRef.current = lastMessageId;
+  }, [selectedChatId, selectedChat?.messages]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof EventSource === 'undefined') {
@@ -272,75 +342,102 @@ export default function DoctorMessagesPage() {
   const selectedPatient = selectedChat?.patient || null;
   const selectedParty = isDoctor ? selectedPatient : selectedDoctor;
   const hasChats = chats.length > 0;
+  const canSendMessage = Boolean(selectedChat?.id && draft.trim() && !sending);
   const typingIndicator = selectedChat?.typingIndicator || null;
   const typingIndicatorText =
     typingIndicator && typingIndicator.senderType !== viewerType
       ? getTypingIndicatorText(typingIndicator)
       : '';
-  const hasDraftText = Boolean(draft.trim());
 
   useEffect(() => {
     const chatId = selectedChat?.id;
-    if (!chatId) {
-      return undefined;
-    }
+    const draftValue = draft.trim();
 
-    let intervalId;
-    let cancelled = false;
-
-    async function updateTyping(isTyping) {
+    async function updateTyping(targetChatId, isTyping) {
       try {
-        const payload = await apiClient.setDoctorChatTyping(chatId, {
+        const payload = await apiClient.setDoctorChatTyping(targetChatId, {
           isTyping,
         });
 
-        if (cancelled || !payload?.chat) {
+        if (!payload?.chat) {
           return;
         }
 
-        setSelectedChat(payload.chat);
+        if (payload.chat.id === selectedChatId) {
+          setSelectedChat(payload.chat);
+        }
         setChats((current) => upsertChat(current, payload.chat));
       } catch (_error) {
         // Non-blocking presence hint. Ignore failures silently.
       }
     }
 
-    if (!hasDraftText || sending) {
-      void updateTyping(false);
-      return () => {
-        cancelled = true;
-      };
+    if (!chatId) {
+      if (latestTypingChatIdRef.current && typingActiveRef.current) {
+        void apiClient
+          .setDoctorChatTyping(latestTypingChatIdRef.current, {
+            isTyping: false,
+          })
+          .catch(() => {});
+      }
+
+      latestTypingChatIdRef.current = '';
+      typingActiveRef.current = false;
+      return;
     }
 
-    void updateTyping(true);
-    intervalId = window.setInterval(() => {
-      void updateTyping(true);
-    }, 2500);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
+    if (
+      latestTypingChatIdRef.current &&
+      latestTypingChatIdRef.current !== chatId &&
+      typingActiveRef.current
+    ) {
       void apiClient
-        .setDoctorChatTyping(chatId, { isTyping: false })
+        .setDoctorChatTyping(latestTypingChatIdRef.current, {
+          isTyping: false,
+        })
         .catch(() => {});
-    };
-  }, [hasDraftText, selectedChat?.id, sending]);
-
-  const helperText = useMemo(() => {
-    if (!selectedParty) {
-      return isDoctor
-        ? tr('Pick a patient conversation to review their latest message.')
-        : tr('Pick a doctor to view your conversation history.');
+      typingActiveRef.current = false;
+      latestTypingChatIdRef.current = '';
     }
 
-    if (isDoctor) {
-      return tr(
-        'Reply directly to your patients from this shared consultation inbox.',
-      );
+    if (draftValue && !sending) {
+      latestTypingChatIdRef.current = chatId;
+      if (!typingActiveRef.current) {
+        typingActiveRef.current = true;
+        void updateTyping(chatId, true);
+      }
+      return;
     }
 
-    return '';
-  }, [isDoctor, selectedParty, tr]);
+    if (typingActiveRef.current && latestTypingChatIdRef.current === chatId) {
+      typingActiveRef.current = false;
+      void updateTyping(chatId, false);
+    }
+  }, [draft, selectedChat?.id, sending]);
+
+  useEffect(
+    () => () => {
+      if (latestTypingChatIdRef.current && typingActiveRef.current) {
+        void apiClient
+          .setDoctorChatTyping(latestTypingChatIdRef.current, {
+            isTyping: false,
+          })
+          .catch(() => {});
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const element = draftInputRef.current;
+    if (!element) {
+      return;
+    }
+
+    element.style.height = '40px';
+    element.style.height = `${Math.min(element.scrollHeight, 160)}px`;
+    element.style.overflowY = element.scrollHeight > 160 ? 'auto' : 'hidden';
+  }, [draft]);
 
   const sendMessage = async (event) => {
     event.preventDefault();
@@ -350,8 +447,26 @@ export default function DoctorMessagesPage() {
       return;
     }
 
+    const optimisticMessage = buildOptimisticChatMessage({
+      message,
+      senderType: viewerType,
+      senderName: user?.name || tr(isDoctor ? 'Doctor' : 'Patient'),
+      senderLanguage: language,
+    });
+    const previousChatSnapshot = selectedChat;
+    const optimisticChat = {
+      ...selectedChat,
+      messages: [...(selectedChat.messages || []), optimisticMessage],
+      lastMessage: optimisticMessage,
+      lastMessageAt: optimisticMessage.createdAt,
+      typingIndicator: null,
+    };
+
     setSending(true);
     setError('');
+    setDraft('');
+    setSelectedChat(optimisticChat);
+    setChats((current) => upsertChat(current, optimisticChat));
 
     try {
       const payload = await apiClient.sendDoctorChatMessage(selectedChat.id, {
@@ -362,8 +477,10 @@ export default function DoctorMessagesPage() {
         setSelectedChat(payload.chat);
         setChats((current) => upsertChat(current, payload.chat));
       }
-      setDraft('');
     } catch (sendError) {
+      setSelectedChat(previousChatSnapshot);
+      setChats((current) => upsertChat(current, previousChatSnapshot));
+      setDraft(message);
       setError(sendError.message || tr('Unable to send message right now.'));
     } finally {
       setSending(false);
@@ -371,14 +488,14 @@ export default function DoctorMessagesPage() {
   };
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="grid h-[calc(100dvh-6.5rem)] min-h-0 grid-rows-[minmax(240px,0.85fr)_minmax(0,1.15fr)] gap-4 overflow-hidden xl:grid-cols-[300px_minmax(0,1fr)] xl:grid-rows-1 xl:items-stretch">
+      <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">
+            <h1 className="text-xl font-bold text-slate-900">
               {tr(isDoctor ? 'Patient Messages' : 'Doctor Messages')}
             </h1>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
+            <p className="mt-1.5 text-sm leading-5 text-slate-600">
               {tr(
                 isDoctor
                   ? 'Review and reply to patient conversations from one inbox.'
@@ -389,7 +506,7 @@ export default function DoctorMessagesPage() {
           {!isDoctor && (
             <Link
               to="/app/consultation/doctors"
-              className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+              className="rounded-xl border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
             >
               {tr('Find Doctors')}
             </Link>
@@ -397,12 +514,12 @@ export default function DoctorMessagesPage() {
         </div>
 
         {error && (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {error}
           </div>
         )}
 
-        <div className="mt-4 space-y-3">
+        <div className="mt-3 flex-1 space-y-2.5 overflow-y-auto overscroll-contain pr-1">
           {loadingList && (
             <p className="text-sm text-slate-500">
               {tr('Loading conversations...')}
@@ -455,7 +572,7 @@ export default function DoctorMessagesPage() {
                   setSearchParams({ chatId: chat.id }, { replace: false })
                 }
                 className={[
-                  'w-full rounded-2xl border p-3.5 text-left transition-colors',
+                  'w-full rounded-2xl border p-3 text-left transition-colors',
                   isSelected
                     ? 'border-blue-200 bg-blue-50'
                     : 'border-slate-200 bg-white hover:bg-slate-50',
@@ -465,7 +582,7 @@ export default function DoctorMessagesPage() {
                   <img
                     src={partyAvatar}
                     alt={party?.name || tr(isDoctor ? 'Patient' : 'Doctor')}
-                    className="h-12 w-12 rounded-2xl object-cover"
+                    className="h-10 w-10 rounded-2xl object-cover"
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-3">
@@ -485,9 +602,20 @@ export default function DoctorMessagesPage() {
                         {formatTimestamp(chat.lastMessageAt, formatDateTime)}
                       </p>
                     </div>
-                    <p className="mt-1 truncate text-sm text-slate-600">
-                      {previewText}
-                    </p>
+                    {chat?.typingIndicator ? (
+                      <div className="mt-0.5 inline-flex max-w-full items-center gap-1.5 truncate text-sm text-blue-600">
+                        <ThreeDotsTypingIndicator
+                          label={previewText}
+                          dotColor="#3b82f6"
+                          compact
+                        />
+                        <span className="truncate">{previewText}</span>
+                      </div>
+                    ) : (
+                      <p className="mt-0.5 truncate text-sm text-slate-600">
+                        {previewText}
+                      </p>
+                    )}
                   </div>
                 </div>
               </button>
@@ -496,9 +624,9 @@ export default function DoctorMessagesPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <section className="min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         {!selectedChatId && !hasChats && (
-          <div className="flex h-full min-h-[480px] items-center justify-center p-8 text-center">
+          <div className="flex h-full min-h-0 items-center justify-center p-8 text-center">
             <div className="max-w-md">
               <h2 className="text-xl font-semibold text-slate-900">
                 {tr(
@@ -519,81 +647,62 @@ export default function DoctorMessagesPage() {
         )}
 
         {selectedChatId && (
-          <div className="flex min-h-[540px] flex-col">
-            <div className="border-b border-slate-200 p-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3">
-                  <img
-                    src={
-                      selectedParty?.avatar ||
-                      selectedDoctor?.avatar ||
-                      '/image/ogaDoctor.png'
-                    }
-                    alt={
-                      selectedParty?.name || tr(isDoctor ? 'Patient' : 'Doctor')
-                    }
-                    className="h-14 w-14 rounded-2xl object-cover"
-                  />
-                  <div>
-                    <h2 className="text-lg font-semibold text-slate-900">
-                      {selectedParty?.name ||
-                        tr(
-                          isDoctor
-                            ? 'Patient Conversation'
-                            : 'Doctor Conversation',
-                        )}
-                    </h2>
-                    <p className="text-sm text-slate-500">
+          <div className="flex h-full min-h-0 flex-col overflow-hidden">
+            <div className="sticky top-0 z-10 shrink-0 border-b border-slate-100 bg-white/95 px-4 py-2.5 backdrop-blur">
+              <div className="flex items-center gap-3">
+                <img
+                  src={
+                    selectedParty?.avatar ||
+                    selectedDoctor?.avatar ||
+                    '/image/ogaDoctor.png'
+                  }
+                  alt={
+                    selectedParty?.name || tr(isDoctor ? 'Patient' : 'Doctor')
+                  }
+                  className="h-9 w-9 rounded-2xl object-cover"
+                />
+                <div className="min-w-0 flex-1">
+                  <h2 className="truncate text-sm font-semibold text-slate-900">
+                    {selectedParty?.name ||
+                      tr(
+                        isDoctor
+                          ? 'Patient Conversation'
+                          : 'Doctor Conversation',
+                      )}
+                  </h2>
+                  <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
+                    <span className="truncate">
                       {tr(
                         isDoctor
-                          ? selectedPatient?.email ||
-                              selectedChat?.subject ||
-                              ''
+                          ? selectedChat?.subject || 'Direct conversation'
                           : selectedDoctor?.title ||
                               selectedDoctor?.specialty ||
                               selectedChat?.subject ||
-                              '',
+                              'Direct conversation',
                       )}
-                    </p>
+                    </span>
+                    {typingIndicatorText ? (
+                      <>
+                        <span className="text-slate-300">•</span>
+                        <span className="inline-flex items-center gap-1 text-[11px] text-blue-600">
+                          <ThreeDotsTypingIndicator
+                            label={typingIndicatorText}
+                            dotColor="#3b82f6"
+                            compact
+                          />
+                          <span>{typingIndicatorText}</span>
+                        </span>
+                      </>
+                    ) : null}
                   </div>
                 </div>
-
-                <div className="flex flex-wrap gap-2 text-xs">
-                  {!isDoctor && selectedDoctor?.nextAvailable && (
-                    <span className="rounded-full bg-slate-100 px-3 py-2 text-slate-600">
-                      {tr('Next available: {value}', {
-                        value: tr(selectedDoctor.nextAvailable),
-                      })}
-                    </span>
-                  )}
-                  {!isDoctor && selectedDoctor?.responseTime && (
-                    <span className="rounded-full bg-blue-50 px-3 py-2 text-blue-700">
-                      {tr(selectedDoctor.responseTime)}
-                    </span>
-                  )}
-                  {isDoctor && selectedPatient?.email && (
-                    <span className="rounded-full bg-slate-100 px-3 py-2 text-slate-600">
-                      {selectedPatient.email}
-                    </span>
-                  )}
-                </div>
               </div>
-
-              {helperText ? (
-                <p className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                  {helperText}
-                </p>
-              ) : null}
-
-              {typingIndicatorText ? (
-                <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700">
-                  <TypingDots colorClass="bg-blue-500" />
-                  <span>{typingIndicatorText}</span>
-                </div>
-              ) : null}
             </div>
 
-            <div className="flex-1 space-y-4 overflow-y-auto p-5">
+            <div
+              ref={messagesScrollRef}
+              className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain bg-slate-50/45 px-4 py-3"
+            >
               {loadingChat && (
                 <p className="text-sm text-slate-500">
                   {tr('Loading conversation...')}
@@ -610,10 +719,10 @@ export default function DoctorMessagesPage() {
                     <div
                       key={message.id}
                       className={[
-                        'max-w-2xl rounded-2xl border px-4 py-3',
+                        'max-w-2xl rounded-2xl px-3.5 py-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]',
                         isLocal
-                          ? 'ml-auto border-blue-200 bg-blue-50'
-                          : 'border-slate-200 bg-slate-50',
+                          ? 'bg-blue-50/85 text-slate-800 ring-1 ring-blue-100'
+                          : 'ml-auto bg-white/88 text-slate-800 ring-1 ring-slate-200/70',
                       ].join(' ')}
                     >
                       <div className="flex items-center justify-between gap-4">
@@ -627,16 +736,19 @@ export default function DoctorMessagesPage() {
                           {formatTimestamp(message.createdAt, formatDateTime)}
                         </p>
                       </div>
-                      <p className="mt-2 text-sm leading-6 text-slate-700">
+                      <p className="mt-1.5 text-sm leading-5 text-slate-700">
                         {getDoctorChatDisplayText(message, translatedTextMap)}
                       </p>
                     </div>
                   );
                 })}
               {typingIndicatorText ? (
-                <div className="max-w-fit rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
+                <div className="ml-auto max-w-fit rounded-2xl bg-white/88 px-3 py-2 text-sm font-medium text-slate-500 ring-1 ring-slate-200/70">
                   <div className="flex items-center gap-2">
-                    <TypingDots colorClass="bg-slate-400" />
+                    <ThreeDotsTypingIndicator
+                      label={typingIndicatorText}
+                      dotColor="#94a3b8"
+                    />
                     <span>{typingIndicatorText}</span>
                   </div>
                 </div>
@@ -646,17 +758,16 @@ export default function DoctorMessagesPage() {
 
             <form
               onSubmit={sendMessage}
-              className="border-t border-slate-200 p-5"
+              className="sticky bottom-0 z-10 shrink-0 border-t border-slate-100 bg-white/95 px-4 py-3 backdrop-blur"
             >
-              <label className="block text-sm font-medium text-slate-700">
-                {tr(isDoctor ? 'Send a reply' : 'Send a direct message')}
-              </label>
-              <div className="mt-2 flex flex-col gap-3 sm:flex-row">
+              <div className="flex items-end gap-2">
                 <textarea
+                  ref={draftInputRef}
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
-                  rows={3}
-                  className="min-h-[96px] flex-1 rounded-2xl border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500"
+                  onInput={handleComposerInput}
+                  rows={1}
+                  className="h-10 min-h-10 max-h-40 flex-1 resize-none overflow-y-hidden rounded-xl border border-slate-200 bg-slate-50/75 px-3 py-2.5 text-sm leading-5 text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:bg-white"
                   placeholder={tr(
                     isDoctor
                       ? 'Share a reply, follow-up instruction, or care update...'
@@ -665,10 +776,39 @@ export default function DoctorMessagesPage() {
                 />
                 <button
                   type="submit"
-                  disabled={sending || !draft.trim() || !selectedChat?.id}
-                  className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:self-end"
+                  disabled={!canSendMessage}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 sm:w-auto sm:min-w-[104px] sm:gap-2 sm:rounded-xl sm:px-4"
+                  style={{
+                    borderColor: '#0f172a',
+                    backgroundColor: '#0f172a',
+                    color: '#ffffff',
+                    boxShadow: '0 10px 24px -14px rgba(15,23,42,0.85)',
+                    cursor: canSendMessage ? 'pointer' : 'not-allowed',
+                    transform: canSendMessage ? undefined : 'none',
+                    opacity: 1,
+                    WebkitTextFillColor: '#ffffff',
+                  }}
                 >
-                  {sending ? tr('Sending...') : tr('Send Message')}
+                  <PaperAirplaneIcon
+                    aria-hidden="true"
+                    className="h-4 w-4 shrink-0"
+                    style={{
+                      color: 'inherit',
+                      fill: 'currentColor',
+                      opacity: 1,
+                      display: 'block',
+                      transform: 'rotate(-45deg)',
+                    }}
+                  />
+                  <span
+                    className="hidden text-sm font-semibold tracking-tight sm:inline"
+                    style={{ color: 'inherit' }}
+                  >
+                    {sending ? tr('Sending...') : tr('Send')}
+                  </span>
+                  <span className="sr-only">
+                    {sending ? tr('Sending...') : tr('Send Message')}
+                  </span>
                 </button>
               </div>
             </form>

@@ -784,6 +784,26 @@ function sanitizeDoctorProfilePayload(input = {}) {
   };
 }
 
+function resolveDoctorProfileUpdatePayload(body = {}) {
+  const hasNestedProfile =
+    body?.profile &&
+    typeof body.profile === 'object' &&
+    !Array.isArray(body.profile);
+
+  if (hasNestedProfile) {
+    return body.profile;
+  }
+
+  const hasLegacyFields = [
+    'phone',
+    'practiceAddress',
+    'licenseNumber',
+    'consultationFocus',
+  ].some((field) => typeof body?.[field] === 'string');
+
+  return hasLegacyFields ? body : null;
+}
+
 function isInlineImageDataUrl(value = '') {
   return /^data:image\//i.test(String(value || '').trim());
 }
@@ -811,7 +831,11 @@ function resolveDoctorAvatarValue({
   return buildNameAvatarDataUrl(name || 'Doctor');
 }
 
-function buildDeliveredAvatarValue(avatar = '', fallbackName = 'Doctor') {
+function buildDeliveredAvatarValue(
+  avatar = '',
+  fallbackName = 'Doctor',
+  version = '',
+) {
   const rawValue = toOptionalString(avatar);
   if (!rawValue) {
     return buildNameAvatarDataUrl(fallbackName);
@@ -823,7 +847,7 @@ function buildDeliveredAvatarValue(avatar = '', fallbackName = 'Doctor') {
 
   const fileName = extractBackblazeFileNameFromUrl(rawValue);
   if (fileName) {
-    return buildBackblazeProxyUrl(fileName);
+    return buildBackblazeProxyUrl(fileName, version);
   }
 
   return rawValue;
@@ -865,6 +889,7 @@ function getSafeDoctor(doctor) {
         fallbackAvatar: doctor.avatar,
       }),
       doctor.name || doctor.title || 'Doctor',
+      doctor.updatedAt || doctor.createdAt || '',
     ),
     priceLabel: doctor.priceLabel || '',
   };
@@ -1091,7 +1116,7 @@ function countDoctorChatUnreadMessages(chat, user) {
   }).length;
 }
 
-async function markDoctorChatMessagesSeen(chat, user) {
+async function markDoctorChatMessagesSeen(chat, user, { persist = true } = {}) {
   const viewerType = getDoctorChatViewerType(user);
   const messages = Array.isArray(chat?.messages) ? chat.messages : [];
   let changed = false;
@@ -1121,7 +1146,9 @@ async function markDoctorChatMessagesSeen(chat, user) {
   }
 
   chat.messages = nextMessages;
-  await chat.save();
+  if (persist) {
+    await chat.save();
+  }
   return chat;
 }
 
@@ -1235,21 +1262,28 @@ async function broadcastDoctorChatEvent(chat) {
     return;
   }
 
+  const targets = [
+    {
+      key: `patient:${chat.patientId}`,
+      userType: 'patient',
+    },
+    {
+      key: `doctor:${chat.doctorId}`,
+      userType: 'doctor',
+    },
+  ].filter((target) => {
+    const clients = doctorChatStreamClients.get(target.key);
+    return target.key && clients && clients.size > 0;
+  });
+
+  if (targets.length === 0) {
+    return;
+  }
+
   const [doctor, patient] = await Promise.all([
     findDoctorById(chat.doctorId),
     findPatientById(chat.patientId),
   ]);
-
-  const targets = [
-    {
-      key: `patient:${chat.patientId}`,
-      user: patient,
-    },
-    {
-      key: `doctor:${chat.doctorId}`,
-      user: doctor,
-    },
-  ].filter((target) => target.key && target.user);
 
   for (const target of targets) {
     const clients = doctorChatStreamClients.get(target.key);
@@ -1257,9 +1291,14 @@ async function broadcastDoctorChatEvent(chat) {
       continue;
     }
 
+    const targetUser = target.userType === 'doctor' ? doctor : patient;
+    if (!targetUser) {
+      continue;
+    }
+
     const payload = JSON.stringify({
       type: 'chat-updated',
-      chat: buildDoctorChatPayload(chat, doctor, patient, target.user),
+      chat: buildDoctorChatPayload(chat, doctor, patient, targetUser),
     });
 
     for (const client of clients) {
@@ -1283,6 +1322,20 @@ function normalizeTranscriptStatus(rawValue = '') {
   }
 
   return 'active';
+}
+
+async function resolveDoctorChatPartiesForUser(chat, user) {
+  if (isDoctorAccount(user)) {
+    return {
+      doctor: user,
+      patient: await findPatientById(chat.patientId),
+    };
+  }
+
+  return {
+    doctor: await findDoctorById(chat.doctorId),
+    patient: user,
+  };
 }
 
 function normalizeConsultationType(rawValue = '') {
@@ -1540,6 +1593,7 @@ function getSafeUser(user) {
     avatar: buildDeliveredAvatarValue(
       user.avatar || '',
       user.name || user.email || 'Patient',
+      user.updatedAt || user.createdAt || '',
     ),
     authType: user.authType,
     onboarding: user.onboarding || {},
@@ -2091,6 +2145,19 @@ function sendRouteError(
   error,
   fallbackMessage = 'Server error. Please try again later.',
 ) {
+  if (
+    Number.isInteger(error?.statusCode) &&
+    error.statusCode >= 400 &&
+    error.exposeMessage === true &&
+    typeof error?.message === 'string' &&
+    error.message.trim()
+  ) {
+    return res.status(error.statusCode).json({
+      success: false,
+      message: error.message.trim(),
+    });
+  }
+
   if (isAwsCredentialError(error)) {
     return res.status(503).json({
       success: false,
@@ -2729,8 +2796,9 @@ router.put('/auth/profile', authRequired, async (req, res) => {
       user.isPremium = isPremium;
     }
 
-    const profileInput =
-      req.body?.profile && typeof req.body.profile === 'object'
+    const profileInput = isDoctorAccount(user)
+      ? resolveDoctorProfileUpdatePayload(req.body)
+      : req.body?.profile && typeof req.body.profile === 'object'
         ? req.body.profile
         : req.body || {};
 
@@ -2738,7 +2806,7 @@ router.put('/auth/profile', authRequired, async (req, res) => {
       user.profile = {
         ...defaultDoctorProfile(),
         ...(user.profile || {}),
-        ...sanitizeDoctorProfilePayload(profileInput),
+        ...(profileInput ? sanitizeDoctorProfilePayload(profileInput) : {}),
       };
       const doctorTitle =
         toOptionalString(req.body?.title) || user.title || 'Doctor';
@@ -2939,10 +3007,7 @@ router.post('/auth/onboarding', authRequired, async (req, res) => {
         toOptionalString(req.body?.specialty) ||
         user.specialty ||
         'General Medicine';
-      const nextProfileInput =
-        req.body?.profile && typeof req.body.profile === 'object'
-          ? req.body.profile
-          : req.body || {};
+      const nextProfileInput = resolveDoctorProfileUpdatePayload(req.body);
 
       if (typeof req.body?.name === 'string' && req.body.name.trim()) {
         user.name = req.body.name.trim();
@@ -3002,7 +3067,9 @@ router.post('/auth/onboarding', authRequired, async (req, res) => {
       user.profile = {
         ...defaultDoctorProfile(),
         ...(user.profile || {}),
-        ...sanitizeDoctorProfilePayload(nextProfileInput),
+        ...(nextProfileInput
+          ? sanitizeDoctorProfilePayload(nextProfileInput)
+          : {}),
       };
 
       user.onboarding = {
@@ -3320,7 +3387,7 @@ router.post('/doctor-chats', authRequired, async (req, res) => {
           messages[messages.length - 1]?.createdAt || new Date().toISOString(),
       });
     } else if (initialMessage) {
-      await markDoctorChatMessagesSeen(chat, user);
+      await markDoctorChatMessagesSeen(chat, user, { persist: false });
       const nextMessage = buildChatMessage('patient', user, initialMessage);
       chat.messages = [...(chat.messages || []), nextMessage];
       chat.lastMessageAt = nextMessage.createdAt;
@@ -3462,18 +3529,23 @@ router.post(
         isDoctorAccount(user) ? 'doctor' : 'patient',
       );
       await chat.save();
-      await broadcastDoctorChatEvent(chat);
+      const { doctor, patient } = await resolveDoctorChatPartiesForUser(
+        chat,
+        user,
+      );
 
-      const [doctor, patient] = await Promise.all([
-        findDoctorById(chat.doctorId),
-        findPatientById(chat.patientId),
-      ]);
-
-      return res.status(201).json({
+      const responsePayload = {
         success: true,
         chat: buildDoctorChatPayload(chat, doctor, patient, user),
         message: nextMessage,
+      };
+
+      res.status(201).json(responsePayload);
+
+      void broadcastDoctorChatEvent(chat).catch((broadcastError) => {
+        console.error('Doctor chat broadcast error:', broadcastError);
       });
+      return;
     } catch (error) {
       console.error('Doctor chat message error:', error);
       return res.status(500).json({
