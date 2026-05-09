@@ -334,6 +334,23 @@ function getInitials(name = '', email = '') {
   return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
 }
 
+function getAvatarSource(user = {}) {
+  const candidates = [
+    user?.avatar,
+    user?.profile?.avatar,
+    user?.profile?.image,
+    user?.profile?.imageUrl,
+    user?.profile?.photo,
+    user?.profile?.photoUrl,
+  ];
+
+  return (
+    candidates.find(
+      (value) => typeof value === 'string' && value.trim().length > 0,
+    ) || ''
+  );
+}
+
 export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -366,7 +383,7 @@ export default function AppShell() {
         { to: '/app/reports', label: 'Reports', icon: <ReportsIcon /> },
         { to: '/app/profile', label: 'Profile', icon: <ProfileIcon /> },
       ];
-  const avatarSrc = user?.avatar || '';
+  const avatarSrc = useMemo(() => getAvatarSource(user), [user]);
   const avatarInitials = useMemo(
     () => getInitials(user?.name, user?.email),
     [user?.email, user?.name],

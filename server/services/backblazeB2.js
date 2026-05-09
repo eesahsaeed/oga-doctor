@@ -44,6 +44,10 @@ function readConfig() {
   };
 }
 
+export function getBackblazeConfig() {
+  return readConfig();
+}
+
 export function isBackblazeConfigured() {
   const config = readConfig();
   return Boolean(
@@ -157,6 +161,57 @@ async function getUploadTarget(
   return parseJsonResponse(response, 'Backblaze upload URL request failed');
 }
 
+async function listFileNames(
+  apiUrl = '',
+  authorizationToken = '',
+  bucketId = '',
+  { startFileName = '', prefix = '', maxFileCount = 100 } = {},
+) {
+  const params = new URLSearchParams({
+    bucketId,
+    maxFileCount: String(maxFileCount),
+  });
+
+  if (startFileName) {
+    params.set('startFileName', startFileName);
+  }
+
+  if (prefix) {
+    params.set('prefix', prefix);
+  }
+
+  const response = await fetch(
+    `${apiUrl}/b2api/v4/b2_list_file_names?${params.toString()}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: authorizationToken,
+        Accept: 'application/json',
+      },
+    },
+  );
+
+  return parseJsonResponse(response, 'Backblaze file listing failed');
+}
+
+async function deleteFileVersion(
+  apiUrl = '',
+  authorizationToken = '',
+  { fileName = '', fileId = '' } = {},
+) {
+  const response = await fetch(`${apiUrl}/b2api/v4/b2_delete_file_version`, {
+    method: 'POST',
+    headers: {
+      Authorization: authorizationToken,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fileName, fileId }),
+  });
+
+  return parseJsonResponse(response, 'Backblaze file deletion failed');
+}
+
 function buildPublicUrl({
   publicBaseUrl = '',
   downloadUrl = '',
@@ -174,6 +229,148 @@ function buildPublicUrl({
     .split('/')
     .map((segment) => encodeURIComponent(segment))
     .join('/')}`;
+}
+
+export function extractBackblazeFileNameFromUrl(fileUrl = '') {
+  const config = readConfig();
+  const url = String(fileUrl || '').trim();
+  if (!url || !config.bucketName) {
+    return '';
+  }
+
+  try {
+    const parsed = new URL(url);
+    const marker = `/file/${encodeURIComponent(config.bucketName)}/`;
+    const pathname = parsed.pathname || '';
+    const index = pathname.indexOf(marker);
+    if (index === -1) {
+      return '';
+    }
+
+    const encodedPath = pathname.slice(index + marker.length);
+    return encodedPath
+      .split('/')
+      .map((segment) => decodeURIComponent(segment))
+      .join('/');
+  } catch (_error) {
+    return '';
+  }
+}
+
+export function buildBackblazeProxyUrl(fileName = '') {
+  const normalized = String(fileName || '')
+    .trim()
+    .replace(/^\/+/, '');
+  if (!normalized) {
+    return '';
+  }
+
+  return `/api/doctor/avatar-file?file=${encodeURIComponent(normalized)}`;
+}
+
+export async function downloadBackblazeFileByName(fileName = '') {
+  const config = readConfig();
+  if (!isBackblazeConfigured()) {
+    throw new Error(
+      'Doctor image storage is not configured. Add your Backblaze B2 keys first.',
+    );
+  }
+
+  const normalizedFileName = String(fileName || '')
+    .trim()
+    .replace(/^\/+/, '');
+  if (!normalizedFileName) {
+    throw new Error('Avatar file path is required.');
+  }
+
+  const auth = await authorizeAccount(config);
+  const downloadUrl = String(auth.downloadUrl || '')
+    .trim()
+    .replace(/\/+$/, '');
+  if (!downloadUrl || !config.bucketName) {
+    throw new Error('Backblaze download URL is not available.');
+  }
+
+  const encodedFileName = normalizedFileName
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+
+  const response = await fetch(
+    `${downloadUrl}/file/${encodeURIComponent(config.bucketName)}/${encodedFileName}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: auth.authorizationToken || '',
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const rawText = await response.text().catch(() => '');
+    throw new Error(rawText || 'Backblaze file download failed');
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  return {
+    buffer: Buffer.from(arrayBuffer),
+    contentType:
+      response.headers.get('content-type') || 'application/octet-stream',
+    cacheControl:
+      response.headers.get('cache-control') || 'public, max-age=3600',
+  };
+}
+
+export async function deleteBackblazeFileByName(fileName = '') {
+  const config = readConfig();
+  if (!isBackblazeConfigured()) {
+    throw new Error(
+      'Doctor image storage is not configured. Add your Backblaze B2 keys first.',
+    );
+  }
+
+  const normalizedFileName = String(fileName || '')
+    .trim()
+    .replace(/^\/+/, '');
+  if (!normalizedFileName) {
+    throw new Error('Avatar file path is required.');
+  }
+
+  const auth = await authorizeAccount(config);
+  const apiUrl = auth.apiInfo?.storageApi?.apiUrl || '';
+  if (!apiUrl) {
+    throw new Error('Backblaze API URL is not available.');
+  }
+
+  const listing = await listFileNames(
+    apiUrl,
+    auth.authorizationToken || '',
+    config.bucketId,
+    {
+      startFileName: normalizedFileName,
+      prefix: normalizedFileName,
+      maxFileCount: 10,
+    },
+  );
+
+  const target = (listing?.files || []).find(
+    (file) => file?.fileName === normalizedFileName,
+  );
+
+  if (!target?.fileId) {
+    return { deleted: false, fileName: normalizedFileName };
+  }
+
+  await deleteFileVersion(apiUrl, auth.authorizationToken || '', {
+    fileName: normalizedFileName,
+    fileId: target.fileId,
+  });
+
+  return {
+    deleted: true,
+    fileName: normalizedFileName,
+    fileId: target.fileId,
+  };
 }
 
 export async function uploadDoctorAvatarToBackblaze({

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { apiClient } from '../../lib/api';
+import { buildNameAvatarDataUrl } from '../../lib/nameAvatar';
 import {
   clearStoredFormDraft,
   getStoredFormDraft,
@@ -30,6 +31,8 @@ const defaultDoctorProfile = {
   consultationFocus: '',
 };
 
+const MAX_AVATAR_BYTES = 230 * 1024;
+
 function mergeFromPatientProfile(user = {}) {
   return {
     ...defaultPatientProfile,
@@ -50,6 +53,7 @@ function parseCommaList(value = '') {
 
 function buildDoctorForm(user = {}, draft = {}) {
   return {
+    avatar: draft.avatar ?? user?.avatar ?? '',
     name: draft.name ?? user?.name ?? '',
     title: draft.title ?? user?.title ?? '',
     specialty: draft.specialty ?? user?.specialty ?? '',
@@ -72,6 +76,73 @@ function buildDoctorForm(user = {}, draft = {}) {
       ...(draft.profile || {}),
     },
   };
+}
+
+function dataUrlSizeInBytes(dataUrl = '') {
+  const [, base64 = ''] = String(dataUrl || '').split(',');
+  return Math.floor((base64.length * 3) / 4);
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Unable to read selected image.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImage(source) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () =>
+      reject(new Error('Unable to process selected image.'));
+    image.src = source;
+  });
+}
+
+async function buildAvatarDataUrl(file) {
+  if (!file || !String(file.type || '').startsWith('image/')) {
+    throw new Error('Select a valid image file.');
+  }
+
+  const rawDataUrl = await readFileAsDataUrl(file);
+  const image = await loadImage(rawDataUrl);
+  const maxDimension = 520;
+  const ratio = Math.min(
+    1,
+    maxDimension /
+      Math.max(image.width || maxDimension, image.height || maxDimension),
+  );
+  const width = Math.max(1, Math.round((image.width || maxDimension) * ratio));
+  const height = Math.max(
+    1,
+    Math.round((image.height || maxDimension) * ratio),
+  );
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext('2d');
+  if (!context) {
+    throw new Error('Image processing is not available on this browser.');
+  }
+
+  context.drawImage(image, 0, 0, width, height);
+
+  const qualitySteps = [0.9, 0.82, 0.72, 0.62, 0.5];
+  for (const quality of qualitySteps) {
+    const output = canvas.toDataURL('image/jpeg', quality);
+    if (dataUrlSizeInBytes(output) <= MAX_AVATAR_BYTES) {
+      return output;
+    }
+  }
+
+  throw new Error(
+    'Use a smaller image. The profile photo must stay under 230KB.',
+  );
 }
 
 export default function ProfilePage() {
@@ -102,6 +173,13 @@ export default function ProfilePage() {
   );
   const [status, setStatus] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  const doctorAvatarPreview = useMemo(
+    () =>
+      doctorForm.avatar || buildNameAvatarDataUrl(doctorForm.name || 'Doctor'),
+    [doctorForm.avatar, doctorForm.name],
+  );
 
   const onboardingItems = useMemo(() => {
     const onboarding = user?.onboarding || {};
@@ -211,6 +289,42 @@ export default function ProfilePage() {
     }));
   };
 
+  const uploadDoctorProfileImage = async (event) => {
+    const file = event?.target?.files?.[0];
+    if (!file || uploadingAvatar) {
+      return;
+    }
+
+    setUploadingAvatar(true);
+    setStatus('');
+
+    try {
+      const imageDataUrl = await buildAvatarDataUrl(file);
+      const payload = await apiClient.uploadDoctorAvatar({ imageDataUrl });
+      const nextAvatar = payload?.user?.avatar || payload?.avatar || '';
+
+      if (!nextAvatar) {
+        throw new Error(tr('Failed to update profile picture.'));
+      }
+
+      setDoctorForm((prev) => {
+        const nextForm = { ...prev, avatar: nextAvatar };
+        saveStoredFormDraft('doctor_profile', nextForm);
+        return nextForm;
+      });
+
+      await refreshProfile();
+      setStatus(tr('Profile picture updated successfully.'));
+    } catch (error) {
+      setStatus(error.message || tr('Failed to update profile picture.'));
+    } finally {
+      setUploadingAvatar(false);
+      if (event?.target) {
+        event.target.value = '';
+      }
+    }
+  };
+
   const savePatientProfile = async (event) => {
     event.preventDefault();
     setSaving(true);
@@ -305,6 +419,50 @@ export default function ProfilePage() {
 
         <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
           <form onSubmit={saveDoctorProfile} className="space-y-5">
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                <img
+                  src={doctorAvatarPreview}
+                  alt={tr('Doctor avatar preview')}
+                  className="h-24 w-24 rounded-[24px] object-cover ring-2 ring-white"
+                />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {tr('Profile image')}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {tr(
+                      'Upload a new professional photo here. Your previous cloud image will be replaced automatically.',
+                    )}
+                  </p>
+                  <div className="mt-3">
+                    <label
+                      className="inline-flex cursor-pointer items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                      style={{
+                        backgroundColor: '#0f172a',
+                        border: '1.5px solid #0f172a',
+                        color: '#ffffff',
+                      }}
+                    >
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(event) =>
+                          void uploadDoctorProfileImage(event)
+                        }
+                      />
+                      <span style={{ color: '#ffffff' }}>
+                        {uploadingAvatar
+                          ? tr('Optimizing image...')
+                          : tr('Change profile picture')}
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <label className="block">
                 <span className="text-sm font-medium text-slate-700">

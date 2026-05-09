@@ -272,9 +272,21 @@ export const apiClient = {
     return request(`/doctors${suffix}`);
   },
   doctorChats: () => request('/doctor-chats'),
+  doctorChatsStreamUrl: (token) => {
+    const search = new URLSearchParams();
+    if (token) {
+      search.set('token', String(token));
+    }
+    return `${API_BASE}/doctor-chats/stream?${search.toString()}`;
+  },
   createDoctorChat: (payload) =>
     request('/doctor-chats', { method: 'POST', body: payload }),
   doctorChat: (chatId) => request(`/doctor-chats/${chatId}`),
+  setDoctorChatTyping: (chatId, payload) =>
+    request(`/doctor-chats/${chatId}/typing`, {
+      method: 'POST',
+      body: payload,
+    }),
   sendDoctorChatMessage: (chatId, payload) =>
     request(`/doctor-chats/${chatId}/messages`, {
       method: 'POST',

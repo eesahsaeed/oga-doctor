@@ -34,6 +34,15 @@ const doctorChatDefinition = {
     schema: [Object],
     default: [],
   },
+  typingState: {
+    type: Object,
+    schema: {
+      senderType: String,
+      senderId: String,
+      senderName: String,
+      expiresAt: String,
+    },
+  },
   lastMessageAt: String,
 };
 

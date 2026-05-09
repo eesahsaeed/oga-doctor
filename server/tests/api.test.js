@@ -370,6 +370,99 @@ test('doctor chats list loads without DynamoDB key-shape errors', async () => {
   assert.equal(doctorList.body.chats.length > 0, true);
 });
 
+test('doctor chat typing indicator is visible to the other participant only', async () => {
+  const doctorEmail = `doctor-typing-${Date.now()}@example.com`;
+  const patientEmail = `patient-typing-${Date.now()}@example.com`;
+
+  const doctorSignup = await request(app).post('/api/auth/signup').send({
+    name: 'Dr Typing Ready',
+    email: doctorEmail,
+    password: 'secret123',
+    accountType: 'doctor',
+    title: 'Consultant Specialist',
+    specialty: 'General Medicine',
+  });
+
+  assert.equal(doctorSignup.status, 201);
+
+  const doctorOnboarding = await request(app)
+    .post('/api/auth/onboarding')
+    .set('Authorization', `Bearer ${doctorSignup.body.token}`)
+    .send({
+      language: 'en',
+      name: 'Dr Typing Ready',
+      title: 'Consultant Specialist',
+      specialty: 'General Medicine',
+      bio: 'Available for direct patient follow-up.',
+      yearsExperience: 6,
+      responseTime: 'Replies in about 9 mins',
+      nextAvailable: 'Today, 6:00 PM',
+      priceLabel: 'From NGN 10,000',
+      status: 'available',
+      languages: ['en'],
+      consultationModes: ['doctor_chat'],
+      profile: {
+        phone: '+2348022222222',
+        practiceAddress: 'City Clinic, Kano',
+        licenseNumber: 'MDCN-777777',
+        consultationFocus: 'General follow-up care',
+      },
+      onboardingCompleted: true,
+    });
+
+  assert.equal(doctorOnboarding.status, 200);
+
+  const patientSignup = await request(app).post('/api/auth/signup').send({
+    name: 'Patient Typing Ready',
+    email: patientEmail,
+    password: 'secret123',
+    accountType: 'patient',
+  });
+
+  assert.equal(patientSignup.status, 201);
+
+  const chatCreate = await request(app)
+    .post('/api/doctor-chats')
+    .set('Authorization', `Bearer ${patientSignup.body.token}`)
+    .send({
+      doctorId: doctorSignup.body.user.id,
+      subject: 'Follow-up question',
+    });
+
+  assert.equal(chatCreate.status, 201);
+  const chatId = chatCreate.body.chat.id;
+
+  const typingOn = await request(app)
+    .post(`/api/doctor-chats/${chatId}/typing`)
+    .set('Authorization', `Bearer ${patientSignup.body.token}`)
+    .send({ isTyping: true });
+
+  assert.equal(typingOn.status, 200);
+  assert.equal(typingOn.body.success, true);
+  assert.equal(typingOn.body.chat.typingIndicator, null);
+
+  const doctorChatView = await request(app)
+    .get(`/api/doctor-chats/${chatId}`)
+    .set('Authorization', `Bearer ${doctorSignup.body.token}`);
+
+  assert.equal(doctorChatView.status, 200);
+  assert.equal(doctorChatView.body.chat.typingIndicator.senderType, 'patient');
+
+  const typingOff = await request(app)
+    .post(`/api/doctor-chats/${chatId}/typing`)
+    .set('Authorization', `Bearer ${patientSignup.body.token}`)
+    .send({ isTyping: false });
+
+  assert.equal(typingOff.status, 200);
+
+  const doctorChatViewAfterStop = await request(app)
+    .get(`/api/doctor-chats/${chatId}`)
+    .set('Authorization', `Bearer ${doctorSignup.body.token}`);
+
+  assert.equal(doctorChatViewAfterStop.status, 200);
+  assert.equal(doctorChatViewAfterStop.body.chat.typingIndicator, null);
+});
+
 test('patients only see doctors with completed profiles and cannot start chats with incomplete ones', async () => {
   const doctorEmail = `doctor-hidden-${Date.now()}@example.com`;
   const patientEmail = `patient-visible-${Date.now()}@example.com`;

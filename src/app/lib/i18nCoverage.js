@@ -19,6 +19,8 @@ export const I18N_COVERAGE_TRANSLATIONS = {
     'Consultation focus': 'Mayar da hankali na shawara',
     'Consultation modes': 'Hanyoyin shawara',
     'Doctor Workspace': 'Filin aikin likita',
+    'Doctor avatar preview': 'Duban avatar din likita',
+    'Doctor is typing...': 'Likita na rubutawa...',
     "Don't have an account?": 'Ba ka da asusu?',
     'English, Hausa': 'Turanci, Hausa',
     'Expected reply: {value}': 'Amsar da ake tsammani: {value}',
@@ -50,6 +52,7 @@ export const I18N_COVERAGE_TRANSLATIONS = {
       'Sarrafa bayanan likitanka, samuwar da marasa lafiya za su gani, da cikakkun bayanan aikinka.',
     'Microphone enabled.': 'An kunna makirufo.',
     'Microphone muted.': 'An kashe sautin makirufo.',
+    'Change profile picture': 'Canja hoton bayanin martaba',
     'New Room': 'Sabon daki',
     'No email available': 'Babu imel',
     'No patient chats yet. Once a patient starts a doctor chat, it will show up here.':
@@ -68,8 +71,12 @@ export const I18N_COVERAGE_TRANSLATIONS = {
       'Bude wannan hirar domin duba sabon sako.',
     'Patients Reached': 'Marasa lafiya da aka isa',
     'Pending Replies': 'Amsoshin da ake jira',
+    'Patient is typing...': 'Mara lafiya na rubutawa...',
     'Pick a patient conversation to review their latest message.':
       'Zabi hirar mara lafiya domin duba sabon sakonsu.',
+    'Profile image': 'Hoton bayanin martaba',
+    'Profile picture updated successfully.':
+      'An sabunta hoton bayanin martaba cikin nasara.',
     'Please enter your specialty': 'Da fatan a shigar da kwarewarka',
     'Practice Snapshot': 'Takaitaccen bayani kan aiki',
     'Practice address': 'Adireshin aiki',
@@ -103,6 +110,10 @@ export const I18N_COVERAGE_TRANSLATIONS = {
       'Ba a iya sabunta matsayin hannun da aka daga ba.',
     'Unmute Microphone': 'Kunna makirufo',
     'Update Profile': 'Sabunta bayanan martaba',
+    'Failed to update profile picture.':
+      'An kasa sabunta hoton bayanin martaba.',
+    'Upload a new professional photo here. Your previous cloud image will be replaced automatically.':
+      'Loda sabon hoton kwararru a nan. Za a maye gurbin hoton da ke girgije na baya ta atomatik.',
     'Usually responds within 30 minutes': 'Yawanci yana amsawa cikin minti 30',
     'Week {value}': 'Mako na {value}',
     'Years of experience': 'Shekarun kwarewa',
@@ -160,6 +171,8 @@ export const I18N_COVERAGE_TRANSLATIONS = {
     'Consultation focus': 'Consultation focus',
     'Consultation modes': 'Consultation modes',
     'Doctor Workspace': 'Doctor Workspace',
+    'Doctor avatar preview': 'Doctor avatar preview',
+    'Doctor is typing...': 'Doctor is typing...',
     "Don't have an account?": "Don't have an account?",
     'English, Hausa': 'English, Hausa',
     'Expected reply: {value}': 'Expected reply: {value}',
@@ -191,6 +204,7 @@ export const I18N_COVERAGE_TRANSLATIONS = {
       'Manage your doctor identity, patient-facing availability, and practice details.',
     'Microphone enabled.': 'Microphone enabled.',
     'Microphone muted.': 'Microphone muted.',
+    'Change profile picture': 'Change profile picture',
     'New Room': 'New Room',
     'No email available': 'No email available',
     'No patient chats yet. Once a patient starts a doctor chat, it will show up here.':
@@ -209,8 +223,12 @@ export const I18N_COVERAGE_TRANSLATIONS = {
       'Open this conversation to review the latest message.',
     'Patients Reached': 'Patients Reached',
     'Pending Replies': 'Pending Replies',
+    'Patient is typing...': 'Patient is typing...',
     'Pick a patient conversation to review their latest message.':
       'Pick a patient conversation to review their latest message.',
+    'Profile image': 'Profile image',
+    'Profile picture updated successfully.':
+      'Profile picture updated successfully.',
     'Please enter your specialty': 'Please enter your specialty',
     'Practice Snapshot': 'Practice Snapshot',
     'Practice address': 'Practice address',
@@ -243,6 +261,9 @@ export const I18N_COVERAGE_TRANSLATIONS = {
       'Unable to update raised hand status.',
     'Unmute Microphone': 'Unmute Microphone',
     'Update Profile': 'Update Profile',
+    'Failed to update profile picture.': 'Failed to update profile picture.',
+    'Upload a new professional photo here. Your previous cloud image will be replaced automatically.':
+      'Upload a new professional photo here. Your previous cloud image will be replaced automatically.',
     'Usually responds within 30 minutes': 'Usually responds within 30 minutes',
     'Week {value}': 'Week {value}',
     'Years of experience': 'Years of experience',
@@ -300,6 +321,8 @@ export const I18N_COVERAGE_TRANSLATIONS = {
     'Consultation focus': 'Idojuko ijumoran',
     'Consultation modes': 'Awon ona ijumoran',
     'Doctor Workspace': 'Aaye ise dokita',
+    'Doctor avatar preview': 'Aworan avatar dokita',
+    'Doctor is typing...': 'Dokita n ko ifiranse...',
     "Don't have an account?": 'O ko ni akanti?',
     'English, Hausa': 'Geesi, Hausa',
     'Expected reply: {value}': 'Idahun to n reti: {value}',
@@ -331,6 +354,7 @@ export const I18N_COVERAGE_TRANSLATIONS = {
       'Se amojuto idanimo dokita re, bi awon alaisan se le ri e, ati alaye ise re.',
     'Microphone enabled.': 'A ti tan microphone.',
     'Microphone muted.': 'A ti pa ohun microphone.',
+    'Change profile picture': 'Yi aworan profaili pada',
     'New Room': 'Yara tuntun',
     'No email available': 'Ko si imeeli',
     'No patient chats yet. Once a patient starts a doctor chat, it will show up here.':
@@ -348,8 +372,12 @@ export const I18N_COVERAGE_TRANSLATIONS = {
       'Si iwiregbe yi lati wo ifiranse to k?hin.',
     'Patients Reached': 'Awon alaisan ti a de ba',
     'Pending Replies': 'Awon idahun to n duro',
+    'Patient is typing...': 'Alaisan n ko ifiranse...',
     'Pick a patient conversation to review their latest message.':
       'Yan iwiregbe alaisan kan lati wo ifiranse won to k?hin.',
+    'Profile image': 'Aworan profaili',
+    'Profile picture updated successfully.':
+      'A ti se imudojuiwon aworan profaili ni aseyori.',
     'Please enter your specialty': 'Jowo t? pataki ise re sii',
     'Practice Snapshot': 'Akotan ise',
     'Practice address': 'Adiresi ise',
@@ -382,6 +410,10 @@ export const I18N_COVERAGE_TRANSLATIONS = {
       'Ko seese lati mu ipo owo ti a gbe soke dojuiwon.',
     'Unmute Microphone': 'Tan microphone',
     'Update Profile': 'Mu profaili dojuiwon',
+    'Failed to update profile picture.':
+      'Ko seese lati se imudojuiwon aworan profaili.',
+    'Upload a new professional photo here. Your previous cloud image will be replaced automatically.':
+      'Ko aworan amoye tuntun sibe nibi. Aworan cloud to wa tele ni a o paaro laifowoyi.',
     'Usually responds within 30 minutes': 'Maa n dahun laarin iseju 30',
     'Week {value}': 'Ose {value}',
     'Years of experience': 'Odun iriri',
@@ -437,6 +469,8 @@ export const I18N_COVERAGE_TRANSLATIONS = {
     'Consultation focus': 'Consultation focus',
     'Consultation modes': 'Consultation modes',
     'Doctor Workspace': 'Doctor workspace',
+    'Doctor avatar preview': 'Doctor avatar preview',
+    'Doctor is typing...': 'Doctor dey type...',
     "Don't have an account?": 'You no get account?',
     'English, Hausa': 'English, Hausa',
     'Expected reply: {value}': 'Expected reply: {value}',
@@ -468,6 +502,7 @@ export const I18N_COVERAGE_TRANSLATIONS = {
       'Manage your doctor identity, wetin patients go see, and your practice details.',
     'Microphone enabled.': 'Microphone don on.',
     'Microphone muted.': 'Microphone don mute.',
+    'Change profile picture': 'Change profile picture',
     'New Room': 'New room',
     'No email available': 'No email available',
     'No patient chats yet. Once a patient starts a doctor chat, it will show up here.':
@@ -485,8 +520,12 @@ export const I18N_COVERAGE_TRANSLATIONS = {
       'Open this conversation make you check the latest message.',
     'Patients Reached': 'Patients reached',
     'Pending Replies': 'Pending replies',
+    'Patient is typing...': 'Patient dey type...',
     'Pick a patient conversation to review their latest message.':
       'Pick patient conversation make you check the latest message.',
+    'Profile image': 'Profile image',
+    'Profile picture updated successfully.':
+      'Profile picture don update successfully.',
     'Please enter your specialty': 'Put your specialty',
     'Practice Snapshot': 'Practice snapshot',
     'Practice address': 'Practice address',
@@ -518,6 +557,9 @@ export const I18N_COVERAGE_TRANSLATIONS = {
     'Unable to update raised hand status.': 'No fit update raised hand status.',
     'Unmute Microphone': 'Unmute microphone',
     'Update Profile': 'Update profile',
+    'Failed to update profile picture.': 'No fit update profile picture.',
+    'Upload a new professional photo here. Your previous cloud image will be replaced automatically.':
+      'Upload new professional photo here. Your old cloud picture go change automatically.',
     'Usually responds within 30 minutes': 'Usually dey reply within 30 minutes',
     'Week {value}': 'Week {value}',
     'Years of experience': 'Years of experience',

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../../lib/api';
+import { getStoredToken } from '../../lib/session';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
 import { isDoctorUser } from '../../lib/account';
@@ -31,6 +32,20 @@ function upsertChat(chats = [], nextChat) {
   return sortChats([nextChat, ...remaining]);
 }
 
+function TypingDots({ colorClass = 'bg-current' }) {
+  return (
+    <span className="inline-flex items-center gap-1 align-middle">
+      {[0, 1, 2].map((index) => (
+        <span
+          key={index}
+          className={`h-2.5 w-2.5 rounded-full ${colorClass} animate-bounce`}
+          style={{ animationDelay: `${index * 0.12}s` }}
+        />
+      ))}
+    </span>
+  );
+}
+
 export default function DoctorMessagesPage() {
   const { user } = useAuth();
   const { tr, formatDateTime, language } = useLanguage();
@@ -47,13 +62,35 @@ export default function DoctorMessagesPage() {
   const [chats, setChats] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);
   const [translatedTextMap, setTranslatedTextMap] = useState({});
+  const viewerType = isDoctor ? 'doctor' : 'patient';
+
+  const getTypingIndicatorText = (typingIndicator) => {
+    if (!typingIndicator) {
+      return '';
+    }
+
+    return tr(
+      typingIndicator.senderType === 'doctor'
+        ? 'Doctor is typing...'
+        : 'Patient is typing...',
+    );
+  };
 
   useEffect(() => {
     let active = true;
+    let inFlight = false;
+    let intervalId;
 
-    async function loadChats() {
-      setLoadingList(true);
-      setError('');
+    async function loadChats({ initial = false } = {}) {
+      if (inFlight) {
+        return;
+      }
+
+      inFlight = true;
+      if (initial) {
+        setLoadingList(true);
+        setError('');
+      }
 
       try {
         const payload = await apiClient.doctorChats();
@@ -66,24 +103,29 @@ export default function DoctorMessagesPage() {
           setSearchParams({ chatId: nextChats[0].id }, { replace: true });
         }
       } catch (loadError) {
-        if (active) {
+        if (active && initial) {
           setError(
             loadError.message || tr('Unable to load doctor conversations.'),
           );
         }
       } finally {
-        if (active) {
+        if (active && initial) {
           setLoadingList(false);
         }
+        inFlight = false;
       }
     }
 
-    loadChats();
+    void loadChats({ initial: true });
+    intervalId = window.setInterval(() => {
+      void loadChats();
+    }, 6000);
 
     return () => {
       active = false;
+      window.clearInterval(intervalId);
     };
-  }, [selectedChatId, setSearchParams]);
+  }, [selectedChatId, setSearchParams, tr]);
 
   useEffect(() => {
     if (!selectedChatId) {
@@ -92,10 +134,19 @@ export default function DoctorMessagesPage() {
     }
 
     let active = true;
+    let inFlight = false;
+    let intervalId;
 
-    async function loadChat() {
-      setLoadingChat(true);
-      setError('');
+    async function loadChat({ initial = false } = {}) {
+      if (inFlight) {
+        return;
+      }
+
+      inFlight = true;
+      if (initial) {
+        setLoadingChat(true);
+        setError('');
+      }
 
       try {
         const payload = await apiClient.doctorChat(selectedChatId);
@@ -106,26 +157,68 @@ export default function DoctorMessagesPage() {
           setChats((current) => upsertChat(current, payload.chat));
         }
       } catch (loadError) {
-        if (active) {
+        if (active && initial) {
           setError(loadError.message || tr('Unable to load this doctor chat.'));
         }
       } finally {
-        if (active) {
+        if (active && initial) {
           setLoadingChat(false);
         }
+        inFlight = false;
       }
     }
 
-    loadChat();
+    void loadChat({ initial: true });
+    intervalId = window.setInterval(() => {
+      void loadChat();
+    }, 2500);
 
     return () => {
       active = false;
+      window.clearInterval(intervalId);
     };
-  }, [selectedChatId]);
+  }, [selectedChatId, tr]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [selectedChat?.messages]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof EventSource === 'undefined') {
+      return undefined;
+    }
+
+    const token = getStoredToken();
+    if (!token) {
+      return undefined;
+    }
+
+    const stream = new EventSource(apiClient.doctorChatsStreamUrl(token));
+
+    const handleChatUpdate = (event) => {
+      try {
+        const payload = JSON.parse(String(event?.data || '{}'));
+        const nextChat = payload?.chat;
+        if (!nextChat?.id) {
+          return;
+        }
+
+        setChats((current) => upsertChat(current, nextChat));
+        if (nextChat.id === selectedChatId) {
+          setSelectedChat(nextChat);
+        }
+      } catch (_error) {
+        // Ignore malformed stream payloads.
+      }
+    };
+
+    stream.addEventListener('doctor-chat', handleChatUpdate);
+
+    return () => {
+      stream.removeEventListener('doctor-chat', handleChatUpdate);
+      stream.close();
+    };
+  }, [selectedChatId]);
 
   useEffect(() => {
     const uniqueMessages = new Map();
@@ -179,6 +272,59 @@ export default function DoctorMessagesPage() {
   const selectedPatient = selectedChat?.patient || null;
   const selectedParty = isDoctor ? selectedPatient : selectedDoctor;
   const hasChats = chats.length > 0;
+  const typingIndicator = selectedChat?.typingIndicator || null;
+  const typingIndicatorText =
+    typingIndicator && typingIndicator.senderType !== viewerType
+      ? getTypingIndicatorText(typingIndicator)
+      : '';
+  const hasDraftText = Boolean(draft.trim());
+
+  useEffect(() => {
+    const chatId = selectedChat?.id;
+    if (!chatId) {
+      return undefined;
+    }
+
+    let intervalId;
+    let cancelled = false;
+
+    async function updateTyping(isTyping) {
+      try {
+        const payload = await apiClient.setDoctorChatTyping(chatId, {
+          isTyping,
+        });
+
+        if (cancelled || !payload?.chat) {
+          return;
+        }
+
+        setSelectedChat(payload.chat);
+        setChats((current) => upsertChat(current, payload.chat));
+      } catch (_error) {
+        // Non-blocking presence hint. Ignore failures silently.
+      }
+    }
+
+    if (!hasDraftText || sending) {
+      void updateTyping(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void updateTyping(true);
+    intervalId = window.setInterval(() => {
+      void updateTyping(true);
+    }, 2500);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      void apiClient
+        .setDoctorChatTyping(chatId, { isTyping: false })
+        .catch(() => {});
+    };
+  }, [hasDraftText, selectedChat?.id, sending]);
 
   const helperText = useMemo(() => {
     if (!selectedParty) {
@@ -292,17 +438,14 @@ export default function DoctorMessagesPage() {
           {chats.map((chat) => {
             const isSelected = chat.id === selectedChatId;
             const party = isDoctor ? chat.patient : chat.doctor;
-            const metaLabel = tr(
-              isDoctor
-                ? party?.email || chat.subject || 'Consultation'
-                : chat.doctor?.specialty || chat.subject || 'Consultation',
-            );
-            const previewText =
-              getDoctorChatDisplayText(chat.lastMessage, translatedTextMap) ||
-              tr('Open this chat to continue.');
-            const compactPreview = metaLabel
-              ? `${metaLabel} - ${previewText}`
-              : previewText;
+            const partyAvatar =
+              party?.avatar || chat.doctor?.avatar || '/image/ogaDoctor.png';
+            const previewText = chat?.typingIndicator
+              ? getTypingIndicatorText(chat.typingIndicator)
+              : getDoctorChatDisplayText(chat.lastMessage, translatedTextMap) ||
+                tr('Open this chat to continue.');
+            const unreadCount = Number(chat?.unreadCount || 0);
+            const unreadLabel = unreadCount > 99 ? '99+' : String(unreadCount);
 
             return (
               <button
@@ -320,21 +463,30 @@ export default function DoctorMessagesPage() {
               >
                 <div className="flex items-center gap-3">
                   <img
-                    src={chat.doctor?.avatar || '/image/ogaDoctor.png'}
+                    src={partyAvatar}
                     alt={party?.name || tr(isDoctor ? 'Patient' : 'Doctor')}
                     className="h-12 w-12 rounded-2xl object-cover"
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-3">
-                      <p className="truncate text-sm font-semibold text-slate-900">
-                        {party?.name || tr(isDoctor ? 'Patient' : 'Doctor')}
-                      </p>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-sm font-semibold text-slate-900">
+                            {party?.name || tr(isDoctor ? 'Patient' : 'Doctor')}
+                          </p>
+                          {unreadCount > 0 ? (
+                            <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-blue-600 px-1.5 text-[10px] font-bold text-white">
+                              {unreadLabel}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
                       <p className="shrink-0 text-[11px] font-medium text-slate-500">
                         {formatTimestamp(chat.lastMessageAt, formatDateTime)}
                       </p>
                     </div>
                     <p className="mt-1 truncate text-sm text-slate-600">
-                      {compactPreview}
+                      {previewText}
                     </p>
                   </div>
                 </div>
@@ -372,7 +524,11 @@ export default function DoctorMessagesPage() {
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
                   <img
-                    src={selectedDoctor?.avatar || '/image/ogaDoctor.png'}
+                    src={
+                      selectedParty?.avatar ||
+                      selectedDoctor?.avatar ||
+                      '/image/ogaDoctor.png'
+                    }
                     alt={
                       selectedParty?.name || tr(isDoctor ? 'Patient' : 'Doctor')
                     }
@@ -428,6 +584,13 @@ export default function DoctorMessagesPage() {
                   {helperText}
                 </p>
               ) : null}
+
+              {typingIndicatorText ? (
+                <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700">
+                  <TypingDots colorClass="bg-blue-500" />
+                  <span>{typingIndicatorText}</span>
+                </div>
+              ) : null}
             </div>
 
             <div className="flex-1 space-y-4 overflow-y-auto p-5">
@@ -470,6 +633,14 @@ export default function DoctorMessagesPage() {
                     </div>
                   );
                 })}
+              {typingIndicatorText ? (
+                <div className="max-w-fit rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
+                  <div className="flex items-center gap-2">
+                    <TypingDots colorClass="bg-slate-400" />
+                    <span>{typingIndicatorText}</span>
+                  </div>
+                </div>
+              ) : null}
               <div ref={endRef} />
             </div>
 

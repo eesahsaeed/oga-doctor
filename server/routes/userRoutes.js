@@ -12,7 +12,14 @@ import DoctorChat from '../schema/DoctorChatSchema.js';
 import ConsultationTranscript from '../schema/ConsultationTranscriptSchema.js';
 import LegacyUser from '../schema/UserSchema.js';
 import { JWT_SECRET } from '../helper.js';
-import { uploadDoctorAvatarToBackblaze } from '../services/backblazeB2.js';
+import {
+  buildBackblazeProxyUrl,
+  deleteBackblazeFileByName,
+  downloadBackblazeFileByName,
+  extractBackblazeFileNameFromUrl,
+  getBackblazeConfig,
+  uploadDoctorAvatarToBackblaze,
+} from '../services/backblazeB2.js';
 import { isMailerConfigured, sendMail } from '../services/mailer.js';
 import { buildNameAvatarDataUrl } from '../services/nameAvatar.js';
 import {
@@ -24,6 +31,7 @@ import {
 } from '../i18n.js';
 
 const router = express.Router();
+const doctorChatStreamClients = new Map();
 
 router.use((req, res, next) => {
   const originalJson = res.json.bind(res);
@@ -803,12 +811,33 @@ function resolveDoctorAvatarValue({
   return buildNameAvatarDataUrl(name || 'Doctor');
 }
 
+function buildDeliveredAvatarValue(avatar = '', fallbackName = 'Doctor') {
+  const rawValue = toOptionalString(avatar);
+  if (!rawValue) {
+    return buildNameAvatarDataUrl(fallbackName);
+  }
+
+  if (isInlineImageDataUrl(rawValue)) {
+    return rawValue;
+  }
+
+  const fileName = extractBackblazeFileNameFromUrl(rawValue);
+  if (fileName) {
+    return buildBackblazeProxyUrl(fileName);
+  }
+
+  return rawValue;
+}
+
 function getSafePatientSummary(patient) {
   return {
     id: patient?.id || '',
     accountType: 'patient',
     name: patient?.name || '',
     email: patient?.email || '',
+    avatar: buildNameAvatarDataUrl(
+      patient?.name || patient?.email || 'Patient',
+    ),
   };
 }
 
@@ -829,7 +858,14 @@ function getSafeDoctor(doctor) {
     responseTime: doctor.responseTime || '',
     nextAvailable: doctor.nextAvailable || '',
     status: doctor.status || 'available',
-    avatar: doctor.avatar || '',
+    avatar: buildDeliveredAvatarValue(
+      resolveDoctorAvatarValue({
+        avatar: doctor.avatar,
+        name: doctor.name || doctor.title || 'Doctor',
+        fallbackAvatar: doctor.avatar,
+      }),
+      doctor.name || doctor.title || 'Doctor',
+    ),
     priceLabel: doctor.priceLabel || '',
   };
 }
@@ -918,6 +954,7 @@ function buildDoctorGreeting(doctor, language = 'en') {
     senderLanguage: normalizeLanguage(language),
     message: buildDoctorGreetingMessage(doctor.name, language),
     createdAt: new Date().toISOString(),
+    readBy: ['doctor'],
   };
 }
 
@@ -932,10 +969,163 @@ function buildChatMessage(senderType, user, message) {
     senderLanguage: normalizeLanguage(user?.onboarding?.language || 'en'),
     message: message.trim(),
     createdAt: new Date().toISOString(),
+    readBy: [senderType],
   };
 }
 
-function buildDoctorChatPayload(chat, doctor, patient) {
+const DOCTOR_CHAT_TYPING_WINDOW_MS = 6500;
+
+function getDoctorChatViewerType(user) {
+  return isDoctorAccount(user) ? 'doctor' : 'patient';
+}
+
+function normalizeDoctorChatReadBy(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      value
+        .map((entry) =>
+          String(entry || '')
+            .trim()
+            .toLowerCase(),
+        )
+        .filter(Boolean),
+    ),
+  ];
+}
+
+function normalizeDoctorChatTypingState(value) {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const senderType = String(value.senderType || '')
+    .trim()
+    .toLowerCase();
+  const expiresAt = String(value.expiresAt || '').trim();
+
+  if (!['doctor', 'patient'].includes(senderType) || !expiresAt) {
+    return null;
+  }
+
+  const expiresAtMs = Date.parse(expiresAt);
+  if (!Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now()) {
+    return null;
+  }
+
+  return {
+    senderType,
+    senderId: String(value.senderId || '').trim(),
+    senderName: String(value.senderName || '').trim(),
+    expiresAt: new Date(expiresAtMs).toISOString(),
+  };
+}
+
+function getDoctorChatTypingIndicator(chat, user) {
+  const viewerType = getDoctorChatViewerType(user);
+  const typingState = normalizeDoctorChatTypingState(chat?.typingState);
+
+  if (!typingState || typingState.senderType === viewerType) {
+    return null;
+  }
+
+  return typingState;
+}
+
+function clearDoctorChatTypingStateForSender(chat, senderType = '') {
+  const typingState = normalizeDoctorChatTypingState(chat?.typingState);
+  const normalizedSenderType = String(senderType || '')
+    .trim()
+    .toLowerCase();
+
+  if (
+    !typingState ||
+    (normalizedSenderType && typingState.senderType !== normalizedSenderType)
+  ) {
+    return false;
+  }
+
+  delete chat.typingState;
+  return true;
+}
+
+async function updateDoctorChatTypingState(chat, user, isTyping) {
+  const senderType = getDoctorChatViewerType(user);
+  const nextTyping = Boolean(isTyping);
+
+  if (!nextTyping) {
+    const changed = clearDoctorChatTypingStateForSender(chat, senderType);
+    if (changed) {
+      await chat.save();
+    }
+    return chat;
+  }
+
+  chat.typingState = {
+    senderType,
+    senderId: user.id,
+    senderName:
+      user.name ||
+      (senderType === 'doctor' ? user.title || 'Doctor' : 'Patient'),
+    expiresAt: new Date(
+      Date.now() + DOCTOR_CHAT_TYPING_WINDOW_MS,
+    ).toISOString(),
+  };
+  await chat.save();
+  return chat;
+}
+
+function countDoctorChatUnreadMessages(chat, user) {
+  const viewerType = getDoctorChatViewerType(user);
+  const messages = Array.isArray(chat?.messages) ? chat.messages : [];
+
+  return messages.filter((message) => {
+    if (!message || message.senderType === viewerType) {
+      return false;
+    }
+
+    return !normalizeDoctorChatReadBy(message.readBy).includes(viewerType);
+  }).length;
+}
+
+async function markDoctorChatMessagesSeen(chat, user) {
+  const viewerType = getDoctorChatViewerType(user);
+  const messages = Array.isArray(chat?.messages) ? chat.messages : [];
+  let changed = false;
+
+  const nextMessages = messages.map((message) => {
+    if (!message || message.senderType === viewerType) {
+      return message;
+    }
+
+    const readBy = normalizeDoctorChatReadBy(message.readBy);
+    if (readBy.includes(viewerType)) {
+      return {
+        ...message,
+        readBy,
+      };
+    }
+
+    changed = true;
+    return {
+      ...message,
+      readBy: [...readBy, viewerType],
+    };
+  });
+
+  if (!changed) {
+    return chat;
+  }
+
+  chat.messages = nextMessages;
+  await chat.save();
+  return chat;
+}
+
+function buildDoctorChatPayload(chat, doctor, patient, user = null) {
   const messages = Array.isArray(chat.messages) ? chat.messages : [];
   const lastMessage = messages[messages.length - 1] || null;
 
@@ -948,6 +1138,8 @@ function buildDoctorChatPayload(chat, doctor, patient) {
     lastMessageAt: chat.lastMessageAt || lastMessage?.createdAt || null,
     doctor: doctor ? getSafeDoctor(doctor) : null,
     patient: patient ? getSafePatientSummary(patient) : null,
+    unreadCount: user ? countDoctorChatUnreadMessages(chat, user) : 0,
+    typingIndicator: user ? getDoctorChatTypingIndicator(chat, user) : null,
     messages,
     lastMessage,
   };
@@ -973,7 +1165,7 @@ function canAccessDoctorChat(user, chat) {
     : chat.patientId === user.id;
 }
 
-async function buildDoctorChatPayloads(chats = []) {
+async function buildDoctorChatPayloads(chats = [], user = null) {
   const chatList = Array.isArray(chats) ? chats : [];
   const doctors = await ensureDoctorsSeeded();
   const doctorMap = new Map(doctors.map((doctor) => [doctor.id, doctor]));
@@ -1002,8 +1194,83 @@ async function buildDoctorChatPayloads(chats = []) {
       chat,
       doctorMap.get(chat.doctorId),
       patientMap.get(chat.patientId),
+      user,
     ),
   );
+}
+
+function getDoctorChatStreamKey(user) {
+  if (!user?.id) {
+    return '';
+  }
+
+  return `${getDoctorChatViewerType(user)}:${user.id}`;
+}
+
+function registerDoctorChatStreamClient(user, res) {
+  const key = getDoctorChatStreamKey(user);
+  if (!key) {
+    return () => {};
+  }
+
+  const clients = doctorChatStreamClients.get(key) || new Set();
+  clients.add(res);
+  doctorChatStreamClients.set(key, clients);
+
+  return () => {
+    const currentClients = doctorChatStreamClients.get(key);
+    if (!currentClients) {
+      return;
+    }
+
+    currentClients.delete(res);
+    if (currentClients.size === 0) {
+      doctorChatStreamClients.delete(key);
+    }
+  };
+}
+
+async function broadcastDoctorChatEvent(chat) {
+  if (!chat?.id) {
+    return;
+  }
+
+  const [doctor, patient] = await Promise.all([
+    findDoctorById(chat.doctorId),
+    findPatientById(chat.patientId),
+  ]);
+
+  const targets = [
+    {
+      key: `patient:${chat.patientId}`,
+      user: patient,
+    },
+    {
+      key: `doctor:${chat.doctorId}`,
+      user: doctor,
+    },
+  ].filter((target) => target.key && target.user);
+
+  for (const target of targets) {
+    const clients = doctorChatStreamClients.get(target.key);
+    if (!clients || clients.size === 0) {
+      continue;
+    }
+
+    const payload = JSON.stringify({
+      type: 'chat-updated',
+      chat: buildDoctorChatPayload(chat, doctor, patient, target.user),
+    });
+
+    for (const client of clients) {
+      try {
+        client.write(`event: doctor-chat\n`);
+        client.write(`data: ${payload}\n\n`);
+      } catch (_error) {
+        // Broken streams are cleaned up on connection close.
+      }
+    }
+  }
 }
 
 function normalizeTranscriptStatus(rawValue = '') {
@@ -1270,6 +1537,10 @@ function getSafeUser(user) {
     accountType: user.accountType || 'patient',
     name: user.name || '',
     email: user.email,
+    avatar: buildDeliveredAvatarValue(
+      user.avatar || '',
+      user.name || user.email || 'Patient',
+    ),
     authType: user.authType,
     onboarding: user.onboarding || {},
     isPremium: Boolean(user.isPremium),
@@ -1733,9 +2004,18 @@ function parseGeminiError(data) {
   return '';
 }
 
-function authRequired(req, res, next) {
+function resolveAuthToken(req) {
   const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (header.startsWith('Bearer ')) {
+    return header.slice(7);
+  }
+
+  const queryToken = String(req.query?.token || '').trim();
+  return queryToken || null;
+}
+
+function authRequired(req, res, next) {
+  const token = resolveAuthToken(req);
 
   if (!token) {
     return res.status(401).json({ success: false, message: 'Unauthorized' });
@@ -2564,6 +2844,7 @@ router.post('/doctor/avatar-upload', authRequired, async (req, res) => {
       });
     }
 
+    const previousAvatarFileName = extractBackblazeFileNameFromUrl(user.avatar);
     const upload = await uploadDoctorAvatarToBackblaze({
       imageDataUrl,
     });
@@ -2575,18 +2856,69 @@ router.post('/doctor/avatar-upload', authRequired, async (req, res) => {
 
     user.avatar = nextAvatar;
     await user.save();
+    const safeUser = getSafeUser(user);
+
+    if (previousAvatarFileName && previousAvatarFileName !== upload.fileName) {
+      try {
+        await deleteBackblazeFileByName(previousAvatarFileName);
+      } catch (cleanupError) {
+        console.error('Previous doctor avatar cleanup error:', cleanupError);
+      }
+    }
 
     return res.status(200).json({
       success: true,
       message: 'Doctor image uploaded',
-      avatar: nextAvatar,
+      avatar: safeUser.avatar,
       fileName: upload.fileName,
       fileId: upload.fileId,
-      user: getSafeUser(user),
+      user: safeUser,
     });
   } catch (error) {
     console.error('Doctor avatar upload error:', error);
     return sendRouteError(res, error, 'Failed to upload doctor profile image');
+  }
+});
+
+router.get('/doctor/avatar-file', async (req, res) => {
+  try {
+    const config = getBackblazeConfig();
+    const fileName = String(req.query?.file || '')
+      .trim()
+      .replace(/^\/+/, '');
+
+    if (!fileName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Avatar file path is required.',
+      });
+    }
+
+    const allowedPrefix = String(config.filePrefix || '')
+      .trim()
+      .replace(/^\/+|\/+$/g, '');
+
+    if (
+      !allowedPrefix ||
+      fileName.includes('..') ||
+      !fileName.startsWith(`${allowedPrefix}/`)
+    ) {
+      return res.status(404).json({
+        success: false,
+        message: 'Avatar file not found.',
+      });
+    }
+
+    const asset = await downloadBackblazeFileByName(fileName);
+    res.setHeader('Content-Type', asset.contentType);
+    res.setHeader('Cache-Control', asset.cacheControl);
+    return res.status(200).send(asset.buffer);
+  } catch (error) {
+    console.error('Doctor avatar proxy error:', error);
+    return res.status(404).json({
+      success: false,
+      message: 'Avatar file not found.',
+    });
   }
 });
 
@@ -2865,10 +3197,11 @@ router.get('/doctor-chats', authRequired, async (req, res) => {
       user.id,
     );
 
-    const payload = (await buildDoctorChatPayloads(chats)).sort((left, right) =>
-      String(right.lastMessageAt || '').localeCompare(
-        String(left.lastMessageAt || ''),
-      ),
+    const payload = (await buildDoctorChatPayloads(chats, user)).sort(
+      (left, right) =>
+        String(right.lastMessageAt || '').localeCompare(
+          String(left.lastMessageAt || ''),
+        ),
     );
 
     return res.status(200).json({ success: true, chats: payload });
@@ -2877,6 +3210,43 @@ router.get('/doctor-chats', authRequired, async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to load doctor chats',
+    });
+  }
+});
+
+router.get('/doctor-chats/stream', authRequired, async (req, res) => {
+  try {
+    const user = await getAuthedUser(req);
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: 'User not found' });
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders?.();
+    res.write(`event: ready\ndata: {"success":true}\n\n`);
+
+    const unregister = registerDoctorChatStreamClient(user, res);
+    const heartbeat = setInterval(() => {
+      try {
+        res.write(`: heartbeat\n\n`);
+      } catch (_error) {
+        // Closed connection handled below.
+      }
+    }, 20000);
+
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      unregister();
+    });
+  } catch (error) {
+    console.error('Doctor chats stream error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to open doctor chats stream',
     });
   }
 });
@@ -2931,6 +3301,10 @@ router.post('/doctor-chats', authRequired, async (req, res) => {
       const messages = [
         buildDoctorGreeting(doctor, user.onboarding?.language || 'en'),
       ];
+      messages[0] = {
+        ...messages[0],
+        readBy: ['doctor', 'patient'],
+      };
       if (initialMessage) {
         messages.push(buildChatMessage('patient', user, initialMessage));
       }
@@ -2946,18 +3320,21 @@ router.post('/doctor-chats', authRequired, async (req, res) => {
           messages[messages.length - 1]?.createdAt || new Date().toISOString(),
       });
     } else if (initialMessage) {
+      await markDoctorChatMessagesSeen(chat, user);
       const nextMessage = buildChatMessage('patient', user, initialMessage);
       chat.messages = [...(chat.messages || []), nextMessage];
       chat.lastMessageAt = nextMessage.createdAt;
+      clearDoctorChatTypingStateForSender(chat, 'patient');
     }
 
     await chat.save();
+    await broadcastDoctorChatEvent(chat);
 
     const patient = await findPatientById(chat.patientId);
 
     return res.status(201).json({
       success: true,
-      chat: buildDoctorChatPayload(chat, doctor, patient),
+      chat: buildDoctorChatPayload(chat, doctor, patient, user),
     });
   } catch (error) {
     console.error('Doctor chat create error:', error);
@@ -2985,6 +3362,8 @@ router.get('/doctor-chats/:chatId', authRequired, async (req, res) => {
       });
     }
 
+    await markDoctorChatMessagesSeen(chat, user);
+
     const [doctor, patient] = await Promise.all([
       findDoctorById(chat.doctorId),
       findPatientById(chat.patientId),
@@ -2992,13 +3371,51 @@ router.get('/doctor-chats/:chatId', authRequired, async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      chat: buildDoctorChatPayload(chat, doctor, patient),
+      chat: buildDoctorChatPayload(chat, doctor, patient, user),
     });
   } catch (error) {
     console.error('Doctor chat load error:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to load doctor chat',
+    });
+  }
+});
+
+router.post('/doctor-chats/:chatId/typing', authRequired, async (req, res) => {
+  try {
+    const user = await getAuthedUser(req);
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: 'User not found' });
+    }
+
+    const chat = await DoctorChat.get(req.params.chatId);
+    if (!chat || !canAccessDoctorChat(user, chat)) {
+      return res.status(404).json({
+        success: false,
+        message: 'Doctor chat not found',
+      });
+    }
+
+    await updateDoctorChatTypingState(chat, user, req.body?.isTyping);
+    await broadcastDoctorChatEvent(chat);
+
+    const [doctor, patient] = await Promise.all([
+      findDoctorById(chat.doctorId),
+      findPatientById(chat.patientId),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      chat: buildDoctorChatPayload(chat, doctor, patient, user),
+    });
+  } catch (error) {
+    console.error('Doctor chat typing error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update doctor chat typing status',
     });
   }
 });
@@ -3031,6 +3448,8 @@ router.post(
         });
       }
 
+      await markDoctorChatMessagesSeen(chat, user);
+
       const nextMessage = buildChatMessage(
         isDoctorAccount(user) ? 'doctor' : 'patient',
         user,
@@ -3038,7 +3457,12 @@ router.post(
       );
       chat.messages = [...(chat.messages || []), nextMessage];
       chat.lastMessageAt = nextMessage.createdAt;
+      clearDoctorChatTypingStateForSender(
+        chat,
+        isDoctorAccount(user) ? 'doctor' : 'patient',
+      );
       await chat.save();
+      await broadcastDoctorChatEvent(chat);
 
       const [doctor, patient] = await Promise.all([
         findDoctorById(chat.doctorId),
@@ -3047,7 +3471,7 @@ router.post(
 
       return res.status(201).json({
         success: true,
-        chat: buildDoctorChatPayload(chat, doctor, patient),
+        chat: buildDoctorChatPayload(chat, doctor, patient, user),
         message: nextMessage,
       });
     } catch (error) {

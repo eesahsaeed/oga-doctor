@@ -422,7 +422,8 @@ export default function DoctorOnboardingPage() {
         const uploadResponse = await apiClient.uploadDoctorAvatar({
           imageDataUrl: avatarValue,
         });
-        avatarValue = uploadResponse?.avatar || '';
+        avatarValue =
+          uploadResponse?.user?.avatar || uploadResponse?.avatar || '';
 
         if (avatarValue) {
           setForm((prev) => ({ ...prev, avatar: avatarValue }));
